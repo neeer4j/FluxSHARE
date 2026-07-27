@@ -1,0 +1,23 @@
+{
+  "name": "@fluxshare/utils",
+  "version": "0.1.0",
+  "description": "Utility libraries for formatting speeds, sizes, ETAs, and structured logging.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fluxshare/shared": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2",
+    "vitest": "^1.6.0"
+  }
+}

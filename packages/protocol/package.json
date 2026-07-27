@@ -1,0 +1,21 @@
+{
+  "name": "@fluxshare/protocol",
+  "version": "0.1.0",
+  "description": "WebRTC signaling and DataChannel transfer wire protocol schemas.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fluxshare/shared": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}

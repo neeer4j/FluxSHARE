@@ -1,0 +1,19 @@
+{
+  "name": "@fluxshare/shared",
+  "version": "0.1.0",
+  "description": "Shared domain models, types, and constants for FluxShare.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}
