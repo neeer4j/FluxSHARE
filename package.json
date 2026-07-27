@@ -9,6 +9,7 @@
     "packages/*",
     "apps/*"
   ],
+  "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "turbo run dev",
     "dev:desktop": "npm run dev --workspace=apps/desktop",

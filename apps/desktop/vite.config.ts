@@ -11,6 +11,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src/renderer/src'),
       '@fluxshare/shared': path.resolve(__dirname, '../../packages/shared/src'),
       '@fluxshare/protocol': path.resolve(__dirname, '../../packages/protocol/src'),
+      '@fluxshare/ui': path.resolve(__dirname, '../../packages/ui/src'),
       '@fluxshare/utils': path.resolve(__dirname, '../../packages/utils/src')
     }
   },

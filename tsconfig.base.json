@@ -24,6 +24,7 @@
     "paths": {
       "@fluxshare/shared": ["./packages/shared/src"],
       "@fluxshare/protocol": ["./packages/protocol/src"],
+      "@fluxshare/ui": ["./packages/ui/src"],
       "@fluxshare/utils": ["./packages/utils/src"]
     }
   }

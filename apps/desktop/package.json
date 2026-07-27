@@ -15,6 +15,7 @@
   "dependencies": {
     "@fluxshare/protocol": "^0.1.0",
     "@fluxshare/shared": "^0.1.0",
+    "@fluxshare/ui": "^0.1.0",
     "@fluxshare/utils": "^0.1.0",
     "framer-motion": "^11.2.10",
     "lucide-react": "^0.395.0",

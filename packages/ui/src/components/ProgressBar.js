@@ -1,0 +1,8 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { motion } from 'framer-motion';
+import { formatPercentage, formatTransferSpeed, formatETA } from '@fluxshare/utils';
+export function ProgressBar({ percentage, speedBytesPerSecond, etaSeconds, label, className = '' }) {
+    const clamped = Math.min(100, Math.max(0, percentage));
+    return (_jsxs("div", { className: `w-full flex flex-col gap-2 select-none ${className}`, children: [_jsxs("div", { className: "flex items-center justify-between text-xs font-mono", children: [_jsx("span", { className: "text-gray-300 font-medium", children: label ?? 'Transferring Data...' }), _jsxs("div", { className: "flex items-center gap-3 text-gray-400", children: [typeof speedBytesPerSecond === 'number' && (_jsx("span", { className: "text-flux-accent", children: formatTransferSpeed(speedBytesPerSecond) })), typeof etaSeconds === 'number' && (_jsxs("span", { children: ["ETA: ", formatETA(etaSeconds)] })), _jsx("span", { className: "text-gray-200 font-bold", children: formatPercentage(clamped, 1) })] })] }), _jsx("div", { className: "h-2.5 w-full bg-flux-card rounded-full overflow-hidden border border-flux-border p-0.5", children: _jsx(motion.div, { className: "h-full rounded-full bg-gradient-to-r from-blue-500 via-flux-accent to-cyan-300 shadow-glow", initial: { width: 0 }, animate: { width: `${clamped}%` }, transition: { type: 'spring', stiffness: 120, damping: 20 } }) })] }));
+}
+//# sourceMappingURL=ProgressBar.js.map
