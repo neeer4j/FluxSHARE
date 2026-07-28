@@ -4,13 +4,23 @@ import type { Device, FileMetadata } from '@fluxshare/shared';
 import { formatFileSize } from '@fluxshare/utils';
 
 export interface DropZoneProps {
+  readonly devices?: readonly Device[];
   readonly selectedDevice: Device | null;
+  readonly onSelectDevice?: (deviceId: string) => void;
   readonly onStartTransfer: (files: readonly FileMetadata[]) => void;
+  readonly onOpenConnectMobile?: () => void;
+  readonly onAddDemoDevice?: () => void;
+  readonly isMobile?: boolean;
 }
 
 export function DropZone({
+  devices = [],
   selectedDevice,
-  onStartTransfer
+  onSelectDevice,
+  onStartTransfer,
+  onOpenConnectMobile,
+  onAddDemoDevice,
+  isMobile = false
 }: DropZoneProps): React.JSX.Element {
   const [stagedFiles, setStagedFiles] = useState<FileMetadata[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -45,8 +55,21 @@ export function DropZone({
     setStagedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const handleSend = () => {
-    if (stagedFiles.length === 0 || !selectedDevice) return;
+  const handleSendAction = () => {
+    if (stagedFiles.length === 0) return;
+
+    if (!selectedDevice) {
+      if (devices.length > 0 && onSelectDevice && devices[0]) {
+        onSelectDevice(devices[0].id);
+        onStartTransfer(stagedFiles);
+      } else if (onAddDemoDevice) {
+        onAddDemoDevice();
+      } else if (onOpenConnectMobile) {
+        onOpenConnectMobile();
+      }
+      return;
+    }
+
     onStartTransfer(stagedFiles);
   };
 
@@ -85,12 +108,14 @@ export function DropZone({
         </div>
         
         <h3 className="font-bold text-white text-base sm:text-lg mb-1">
-          Drop files here or click to choose
+          {isMobile ? 'Tap to choose photos or files to send' : 'Drop files here or click to choose'}
         </h3>
         
         <p className="text-xs text-gray-400 max-w-sm">
           {selectedDevice
-            ? `Files will be sent directly to ${selectedDevice.name}`
+            ? `Ready to send to ${selectedDevice.name}`
+            : isMobile
+            ? 'Select files to send to your host PC'
             : 'Select files to send to any nearby connected phone or computer'}
         </p>
 
@@ -106,11 +131,11 @@ export function DropZone({
         </button>
       </div>
 
-      {/* Selected Files List */}
+      {/* Selected Files & Recipient Picker */}
       {stagedFiles.length > 0 && (
         <div className="p-4 rounded-2xl bg-flux-card/80 border border-flux-border flex flex-col gap-3">
           <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
-            <span>Staged Files ({stagedFiles.length})</span>
+            <span>Selected Files ({stagedFiles.length})</span>
             <button
               onClick={() => setStagedFiles([])}
               className="text-gray-400 hover:text-red-400 transition-colors"
@@ -119,6 +144,7 @@ export function DropZone({
             </button>
           </div>
 
+          {/* Staged File Items */}
           <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
             {stagedFiles.map((file) => (
               <div
@@ -146,20 +172,36 @@ export function DropZone({
             ))}
           </div>
 
+          {/* Recipient Device Selector dropdown if devices exist */}
+          {devices.length > 0 && onSelectDevice && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-flux-surface border border-flux-border text-xs">
+              <span className="text-gray-400 font-medium">Recipient Device:</span>
+              <select
+                value={selectedDevice?.id ?? ''}
+                onChange={(e) => onSelectDevice(e.target.value)}
+                className="bg-flux-card border border-flux-border rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-flux-accent"
+              >
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.os.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Action Send Button */}
           <button
-            onClick={handleSend}
-            disabled={!selectedDevice}
-            className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-glow transition-all ${
-              selectedDevice
-                ? 'bg-flux-accent text-flux-bg hover:opacity-95'
-                : 'bg-flux-surface text-gray-400 cursor-not-allowed border border-flux-border'
-            }`}
+            onClick={handleSendAction}
+            className="w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-glow bg-flux-accent text-flux-bg hover:opacity-95 transition-all"
           >
             <Send className="w-4 h-4" />
             <span>
               {selectedDevice
-                ? `Send to ${selectedDevice.name}`
-                : 'Select Recipient Device Below'}
+                ? `Send Files to ${selectedDevice.name}`
+                : devices.length > 0
+                ? 'Send Files to Connected Device'
+                : 'Connect Device to Send Files'}
             </span>
           </button>
         </div>
@@ -167,5 +209,6 @@ export function DropZone({
     </section>
   );
 }
+
 
 

@@ -23,6 +23,7 @@ export function App(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<NavigationTab>('nearby');
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
   const [localIp, setLocalIp] = useState<string>('192.168.1.6');
+  const [isMobile, setIsMobile] = useState<boolean>(false);
 
   // Transfer History State
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
@@ -42,6 +43,14 @@ export function App(): React.JSX.Element {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Detect mobile device vs PC
+    const checkMobile = () => {
+      const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobileUA || window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
     async function fetchSystemInfo() {
       if (window.fluxshare) {
         try {
@@ -55,6 +64,8 @@ export function App(): React.JSX.Element {
       }
     }
     fetchSystemInfo();
+
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   const handleAddDemoDevice = () => {
@@ -176,8 +187,13 @@ export function App(): React.JSX.Element {
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Hero File Drop Area */}
             <DropZone
+              devices={devices}
               selectedDevice={selectedDevice}
+              onSelectDevice={setSelectedPeerId}
               onStartTransfer={handleStartTransfer}
+              onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
+              onAddDemoDevice={handleAddDemoDevice}
+              isMobile={isMobile}
             />
 
             {/* Discovered / Connected Devices Grid */}
