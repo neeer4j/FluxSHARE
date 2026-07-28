@@ -69,14 +69,26 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('app:get-local-ip', () => {
     const interfaces = os.networkInterfaces();
+    let fallbackIp = '127.0.0.1';
+
     for (const name of Object.keys(interfaces)) {
+      const lowerName = name.toLowerCase();
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
-          return iface.address;
+          // Prioritize Wi-Fi and Ethernet adapters
+          if (
+            lowerName.includes('wi-fi') ||
+            lowerName.includes('wifi') ||
+            lowerName.includes('ethernet') ||
+            lowerName.includes('wlan')
+          ) {
+            return iface.address;
+          }
+          fallbackIp = iface.address;
         }
       }
     }
-    return '127.0.0.1';
+    return fallbackIp !== '127.0.0.1' ? fallbackIp : '192.168.1.6';
   });
 }
 

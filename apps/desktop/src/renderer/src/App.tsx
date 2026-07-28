@@ -1,13 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { NETWORK_CONSTANTS, type Device, type FileMetadata } from '@fluxshare/shared';
-import {
-  Sidebar,
-  type NavigationTab
-} from './components/layout/Sidebar';
-import {
-  HeaderBar,
-  type OSFilter
-} from './components/layout/HeaderBar';
+import { type NavigationTab } from './components/layout/Sidebar';
+import { HeaderBar } from './components/layout/HeaderBar';
 import { NearbyDevicesList } from './features/discovery/NearbyDevicesList';
 import { DropZone } from './features/transfer/DropZone';
 import {
@@ -21,78 +15,17 @@ import {
 import { SettingsPanel } from './features/settings/SettingsPanel';
 import { ConnectMobileModal } from './components/modals/ConnectMobileModal';
 
-const MOCK_PEERS: readonly Device[] = [
-  {
-    id: 'peer-alpha-01',
-    name: 'MacBook Pro (M3 Max)',
-    os: 'macos',
-    ip: '192.168.1.142',
-    port: 54321,
-    status: 'online',
-    lastSeen: Date.now()
-  },
-  {
-    id: 'peer-beta-02',
-    name: 'Workstation PC (RTX 4090)',
-    os: 'windows',
-    ip: '192.168.1.108',
-    port: 54321,
-    status: 'online',
-    lastSeen: Date.now() - 2000
-  },
-  {
-    id: 'peer-mobile-01',
-    name: 'iPhone 15 Pro Max',
-    os: 'ios',
-    ip: '192.168.1.155',
-    port: 54321,
-    status: 'online',
-    lastSeen: Date.now() - 500
-  },
-  {
-    id: 'peer-mobile-02',
-    name: 'Samsung Galaxy S24 Ultra',
-    os: 'android',
-    ip: '192.168.1.189',
-    port: 54321,
-    status: 'online',
-    lastSeen: Date.now() - 1500
-  },
-  {
-    id: 'peer-gamma-03',
-    name: 'Ubuntu Dev Server',
-    os: 'linux',
-    ip: '192.168.1.199',
-    port: 54321,
-    status: 'busy',
-    lastSeen: Date.now() - 10000
-  }
-];
-
-const INITIAL_HISTORY: readonly HistoryItem[] = [
-  {
-    id: 'hist-01',
-    filename: 'design-system-tokens-v1.zip',
-    sizeBytes: 1024 * 1024 * 42,
-    direction: 'received',
-    peerName: 'MacBook Pro (M3 Max)',
-    timestamp: Date.now() - 3600000,
-    status: 'completed',
-    sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-  }
-];
-
 export function App(): React.JSX.Element {
-  // Navigation & Platform State
+  // Discovered Peers State (Starts empty, populates dynamically or via demo trigger)
+  const [devices, setDevices] = useState<Device[]>([]);
+
+  // Navigation State
   const [activeTab, setActiveTab] = useState<NavigationTab>('nearby');
-  const [osFilter, setOsFilter] = useState<OSFilter>('all');
-  const [selectedPeerId, setSelectedPeerId] = useState<string | null>('peer-alpha-01');
-  const [appVersion, setAppVersion] = useState<string>(NETWORK_CONSTANTS.PROTOCOL_VERSION);
-  const [platform, setPlatform] = useState<string>('unknown');
-  const [localIp, setLocalIp] = useState<string>('192.168.1.142');
+  const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
+  const [localIp, setLocalIp] = useState<string>('192.168.1.6');
 
   // Transfer History State
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([...INITIAL_HISTORY]);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
 
   // Settings State
   const [deviceName, setDeviceName] = useState<string>('My FluxShare Desktop');
@@ -112,13 +45,7 @@ export function App(): React.JSX.Element {
     async function fetchSystemInfo() {
       if (window.fluxshare) {
         try {
-          const [ver, plat, ip] = await Promise.all([
-            window.fluxshare.getAppVersion(),
-            window.fluxshare.getPlatform(),
-            window.fluxshare.getLocalIp()
-          ]);
-          setAppVersion(ver);
-          setPlatform(plat);
+          const ip = await window.fluxshare.getLocalIp();
           if (ip) setLocalIp(ip);
         } catch (err) {
           console.warn('Failed to load system info from IPC:', err);
@@ -130,8 +57,39 @@ export function App(): React.JSX.Element {
     fetchSystemInfo();
   }, []);
 
+  const handleAddDemoDevice = () => {
+    const demoDevices: Device[] = [
+      {
+        id: `peer-phone-${Date.now()}`,
+        name: 'My Mobile Phone',
+        os: 'ios',
+        ip: localIp,
+        port: 54321,
+        status: 'online',
+        lastSeen: Date.now()
+      },
+      {
+        id: `peer-[laptop]-${Date.now()}`,
+        name: 'Secondary Laptop',
+        os: 'windows',
+        ip: '192.168.1.120',
+        port: 54321,
+        status: 'online',
+        lastSeen: Date.now()
+      }
+    ];
+
+    setDevices((prev) => {
+      if (prev.length === 0) {
+        setSelectedPeerId(demoDevices[0]!.id);
+        return demoDevices;
+      }
+      return prev;
+    });
+  };
+
   const selectedDevice =
-    MOCK_PEERS.find((p) => p.id === selectedPeerId) ?? null;
+    devices.find((p) => p.id === selectedPeerId) ?? devices[0] ?? null;
 
   // Triggered when user stages files and clicks "Send to..."
   const handleStartTransfer = (files: readonly FileMetadata[]) => {
@@ -204,80 +162,68 @@ export function App(): React.JSX.Element {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-flux-bg text-gray-100 overflow-hidden font-sans">
-      {/* Sidebar Navigation */}
-      <Sidebar
+    <div className="flex flex-col h-screen w-screen bg-flux-bg text-gray-100 overflow-hidden font-sans select-none">
+      {/* Floating Top Header */}
+      <HeaderBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        nearbyCount={MOCK_PEERS.length}
-        appVersion={appVersion}
+        onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
       />
 
-      {/* Main Content Pane */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <HeaderBar
-          platform={platform}
-          activeFilter={osFilter}
-          onFilterChange={setOsFilter}
-          showFilter={activeTab === 'nearby'}
-          onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
-        />
+      {/* Main Single Canvas Workspace */}
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        {activeTab === 'nearby' && (
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* Hero File Drop Area */}
+            <DropZone
+              selectedDevice={selectedDevice}
+              onStartTransfer={handleStartTransfer}
+            />
 
-        {/* Dynamic Center View */}
-        <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-6">
-          {activeTab === 'nearby' && (
-            <div className="max-w-6xl mx-auto space-y-6">
-              {/* DropZone File Area */}
-              <DropZone
-                selectedDevice={selectedDevice}
-                onStartTransfer={handleStartTransfer}
-              />
+            {/* Discovered / Connected Devices Grid */}
+            <NearbyDevicesList
+              devices={devices}
+              selectedDeviceId={selectedPeerId}
+              onSelectDevice={setSelectedPeerId}
+              onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
+              onAddDemoDevice={handleAddDemoDevice}
+              onSendFile={(dev) => {
+                setSelectedPeerId(dev.id);
+                const sampleFile: FileMetadata = {
+                  id: `file-${Date.now()}`,
+                  name: 'Photos_Archive.zip',
+                  size: 1024 * 1024 * 18.5,
+                  mimeType: 'application/zip',
+                  sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
+                };
+                handleStartTransfer([sampleFile]);
+              }}
+            />
+          </div>
+        )}
 
-              {/* Discovered Nearby Devices Grid */}
-              <NearbyDevicesList
-                devices={MOCK_PEERS}
-                selectedDeviceId={selectedPeerId}
-                onSelectDevice={setSelectedPeerId}
-                onSendFile={(dev) => {
-                  setSelectedPeerId(dev.id);
-                  const sampleFile: FileMetadata = {
-                    id: `file-${Date.now()}`,
-                    name: 'Photos_Archive.zip',
-                    size: 1024 * 1024 * 18.5,
-                    mimeType: 'application/zip',
-                    sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
-                  };
-                  handleStartTransfer([sampleFile]);
-                }}
-                activeOSFilter={osFilter}
-              />
-            </div>
-          )}
+        {activeTab === 'history' && (
+          <div className="max-w-4xl mx-auto">
+            <TransferHistoryTable
+              items={historyItems}
+              onClearHistory={() => setHistoryItems([])}
+            />
+          </div>
+        )}
 
-          {activeTab === 'history' && (
-            <div className="max-w-6xl mx-auto">
-              <TransferHistoryTable
-                items={historyItems}
-                onClearHistory={() => setHistoryItems([])}
-              />
-            </div>
-          )}
-
-          {activeTab === 'settings' && (
-            <div className="max-w-4xl mx-auto">
-              <SettingsPanel
-                initialDeviceName={deviceName}
-                initialPort={port}
-                downloadPath="C:\Users\neera\Downloads\FluxShare"
-                onSaveSettings={handleSaveSettings}
-              />
-            </div>
-          )}
-        </div>
+        {activeTab === 'settings' && (
+          <div className="max-w-3xl mx-auto">
+            <SettingsPanel
+              initialDeviceName={deviceName}
+              initialPort={port}
+              downloadPath="C:\Users\neera\Downloads\FluxShare"
+              onSaveSettings={handleSaveSettings}
+            />
+          </div>
+        )}
       </main>
 
-      {/* Zero-Install Mobile PWA QR Code Modal */}
+      {/* Mobile QR Code Modal */}
       <ConnectMobileModal
         isOpen={isConnectMobileOpen}
         onClose={() => setIsConnectMobileOpen(false)}
@@ -285,7 +231,7 @@ export function App(): React.JSX.Element {
         port={port}
       />
 
-      {/* Interactive Transfer Simulation Modal */}
+      {/* File Transfer Progress Modal */}
       {simulatedFile && selectedDevice && (
         <TransferModal
           isOpen={isModalOpen}

@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, FileText, X, Send } from 'lucide-react';
 import type { Device, FileMetadata } from '@fluxshare/shared';
 import { formatFileSize } from '@fluxshare/utils';
-import { Button } from '@fluxshare/ui';
 
 export interface DropZoneProps {
   readonly selectedDevice: Device | null;
@@ -52,7 +51,7 @@ export function DropZone({
   };
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="w-full flex flex-col gap-4">
       {/* Hidden native file input */}
       <input
         type="file"
@@ -62,7 +61,7 @@ export function DropZone({
         className="hidden"
       />
 
-      {/* Drop Zone Box */}
+      {/* Main Drop Area */}
       <div
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
@@ -79,18 +78,20 @@ export function DropZone({
             setStagedFiles((prev) => [...prev, ...files]);
           }
         }}
-        className="p-8 rounded-2xl border-2 border-dashed border-flux-border hover:border-flux-accent bg-flux-surface/40 hover:bg-flux-surface/80 transition-all cursor-pointer flex flex-col items-center justify-center text-center group"
+        className="p-8 sm:p-10 rounded-3xl border-2 border-dashed border-flux-border hover:border-flux-accent bg-flux-surface/30 hover:bg-flux-surface/60 transition-all cursor-pointer flex flex-col items-center justify-center text-center group relative overflow-hidden"
       >
-        <div className="w-12 h-12 rounded-2xl bg-flux-accent/10 border border-flux-accent/20 flex items-center justify-center text-flux-accent mb-3 group-hover:scale-110 transition-transform">
-          <UploadCloud className="w-6 h-6" />
+        <div className="w-14 h-14 rounded-2xl bg-flux-accent/10 border border-flux-accent/20 flex items-center justify-center text-flux-accent mb-4 group-hover:scale-110 transition-transform">
+          <UploadCloud className="w-7 h-7" />
         </div>
-        <h4 className="font-semibold text-white text-sm">
-          Click or Drag Files Here to Send
-        </h4>
-        <p className="text-xs text-gray-400 mt-1 max-w-xs">
+        
+        <h3 className="font-bold text-white text-base sm:text-lg mb-1">
+          Drop files here or click to choose
+        </h3>
+        
+        <p className="text-xs text-gray-400 max-w-sm">
           {selectedDevice
-            ? `Ready to send to ${selectedDevice.name}`
-            : 'Select a device below or drop files to get started'}
+            ? `Files will be sent directly to ${selectedDevice.name}`
+            : 'Select files to send to any nearby connected phone or computer'}
         </p>
 
         <button
@@ -99,17 +100,17 @@ export function DropZone({
             e.stopPropagation();
             addSampleFile();
           }}
-          className="mt-3 text-[11px] text-flux-accent hover:underline font-medium"
+          className="mt-4 text-xs text-flux-accent hover:underline font-semibold"
         >
           + Add Sample File
         </button>
       </div>
 
-      {/* Staged Files Preview */}
+      {/* Selected Files List */}
       {stagedFiles.length > 0 && (
-        <div className="p-4 rounded-2xl bg-flux-card/70 border border-flux-border flex flex-col gap-3">
+        <div className="p-4 rounded-2xl bg-flux-card/80 border border-flux-border flex flex-col gap-3">
           <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
-            <span>Selected Files ({stagedFiles.length})</span>
+            <span>Staged Files ({stagedFiles.length})</span>
             <button
               onClick={() => setStagedFiles([])}
               className="text-gray-400 hover:text-red-400 transition-colors"
@@ -118,11 +119,11 @@ export function DropZone({
             </button>
           </div>
 
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
             {stagedFiles.map((file) => (
               <div
                 key={file.id}
-                className="p-2.5 rounded-xl bg-flux-surface border border-flux-border flex items-center justify-between text-xs"
+                className="p-3 rounded-xl bg-flux-surface border border-flux-border flex items-center justify-between text-xs"
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <FileText className="w-4 h-4 text-flux-accent shrink-0" />
@@ -145,21 +146,26 @@ export function DropZone({
             ))}
           </div>
 
-          <Button
-            variant="glow"
-            size="md"
-            leftIcon={<Send className="w-4 h-4" />}
+          <button
             onClick={handleSend}
             disabled={!selectedDevice}
-            className="w-full mt-1"
+            className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-glow transition-all ${
+              selectedDevice
+                ? 'bg-flux-accent text-flux-bg hover:opacity-95'
+                : 'bg-flux-surface text-gray-400 cursor-not-allowed border border-flux-border'
+            }`}
           >
-            {selectedDevice
-              ? `Send to ${selectedDevice.name}`
-              : 'Select Recipient Device Below'}
-          </Button>
+            <Send className="w-4 h-4" />
+            <span>
+              {selectedDevice
+                ? `Send to ${selectedDevice.name}`
+                : 'Select Recipient Device Below'}
+            </span>
+          </button>
         </div>
       )}
     </section>
   );
 }
+
 

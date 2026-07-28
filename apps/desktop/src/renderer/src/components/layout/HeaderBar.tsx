@@ -1,82 +1,70 @@
 import React from 'react';
-import { QrCode, Share2 } from 'lucide-react';
-import { type DeviceOS } from '@fluxshare/shared';
-
-export type OSFilter = DeviceOS | 'all';
+import { QrCode, Share2, Radio, History, Settings } from 'lucide-react';
+import type { NavigationTab } from './Sidebar';
 
 export interface HeaderBarProps {
-  readonly platform: string;
-  readonly activeFilter: OSFilter;
-  readonly onFilterChange: (filter: OSFilter) => void;
-  readonly showFilter?: boolean;
+  readonly activeTab: NavigationTab;
+  readonly onTabChange: (tab: NavigationTab) => void;
   readonly onOpenConnectMobile?: () => void;
 }
 
 export function HeaderBar({
-  activeFilter,
-  onFilterChange,
-  showFilter = true,
+  activeTab,
+  onTabChange,
   onOpenConnectMobile
 }: HeaderBarProps): React.JSX.Element {
-  const filterOptions: readonly { id: OSFilter; label: string }[] = [
-    { id: 'all', label: 'All Devices' },
-    { id: 'macos', label: 'Mac' },
-    { id: 'windows', label: 'Windows' },
-    { id: 'linux', label: 'Linux' },
-    { id: 'ios', label: 'iPhone/iPad' },
-    { id: 'android', label: 'Android' }
+  const tabs: readonly { id: NavigationTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'nearby', label: 'Share', icon: <Radio className="w-3.5 h-3.5" /> },
+    { id: 'history', label: 'Transfers', icon: <History className="w-3.5 h-3.5" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-3.5 h-3.5" /> }
   ];
 
   return (
-    <header className="h-16 border-b border-flux-border px-6 flex items-center justify-between bg-flux-bg/80 backdrop-blur-md select-none shrink-0">
-      {/* Left: Brand */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-flux-accent to-blue-600 flex items-center justify-center shadow-glow">
-          <Share2 className="w-5 h-5 text-white" />
+    <header className="h-16 px-4 sm:px-8 flex items-center justify-between border-b border-flux-border/60 bg-flux-bg/90 backdrop-blur-xl select-none shrink-0 z-30">
+      {/* Brand Logo */}
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-flux-accent to-blue-600 flex items-center justify-center shadow-glow">
+          <Share2 className="w-4 h-4 text-white" />
         </div>
-        <div>
-          <h1 className="font-bold text-base tracking-tight leading-tight text-white">
-            FluxShare
-          </h1>
-          <p className="text-[11px] text-gray-400">
-            Instant Wi-Fi File Sharing
-          </p>
-        </div>
+        <span className="font-bold text-base tracking-tight text-white">
+          Flux<span className="text-flux-accent">Share</span>
+        </span>
       </div>
 
-      {/* Center: Device Filter Pills */}
-      {showFilter && (
-        <div className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-flux-surface border border-flux-border">
-          {filterOptions.map((opt) => (
+      {/* Floating Center Tabs */}
+      <nav className="flex items-center gap-1 p-1 rounded-full bg-flux-surface/80 border border-flux-border/80 shadow-glass">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
             <button
-              key={opt.id}
-              onClick={() => onFilterChange(opt.id)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                activeFilter === opt.id
-                  ? 'bg-flux-accent text-flux-bg font-semibold shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200'
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                isActive
+                  ? 'bg-flux-accent text-flux-bg shadow-sm'
+                  : 'text-gray-400 hover:text-white hover:bg-flux-hover/50'
               }`}
             >
-              {opt.label}
+              {tab.icon}
+              <span>{tab.label}</span>
             </button>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </nav>
 
-      {/* Right: Connect Mobile Button */}
-      <div className="flex items-center gap-3">
-        {onOpenConnectMobile && (
-          <button
-            onClick={onOpenConnectMobile}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-flux-accent to-indigo-500 text-flux-bg text-xs font-bold shadow-glow hover:opacity-95 transition-all active:scale-95"
-          >
-            <QrCode className="w-4 h-4" />
-            <span>Connect Mobile</span>
-          </button>
-        )}
-      </div>
+      {/* Right Action: QR Mobile Button */}
+      {onOpenConnectMobile && (
+        <button
+          onClick={onOpenConnectMobile}
+          className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-flux-surface hover:bg-flux-hover text-gray-200 hover:text-white text-xs font-semibold border border-flux-border transition-all active:scale-95 shadow-sm"
+        >
+          <QrCode className="w-3.5 h-3.5 text-flux-accent" />
+          <span className="hidden sm:inline">Connect Phone</span>
+        </button>
+      )}
     </header>
   );
 }
+
 
 

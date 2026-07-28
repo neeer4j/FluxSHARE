@@ -17,7 +17,15 @@ export function ConnectMobileModal({
   port
 }: ConnectMobileModalProps): React.JSX.Element {
   const [copied, setCopied] = useState(false);
-  const connectUrl = `http://${localIp}:${port}`;
+  const [customIp, setCustomIp] = useState<string>(localIp || '192.168.1.6');
+
+  // Keep customIp in sync when localIp prop changes
+  React.useEffect(() => {
+    if (localIp) setCustomIp(localIp);
+  }, [localIp]);
+
+  const activeIp = customIp.trim() || '192.168.1.6';
+  const connectUrl = `http://${activeIp}:${port}`;
 
   const handleCopyUrl = async () => {
     try {
@@ -60,26 +68,32 @@ export function ConnectMobileModal({
         </div>
 
         {/* URL copy banner */}
-        <div className="w-full bg-flux-card border border-flux-border rounded-2xl p-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <QrCode className="w-4 h-4 text-gray-400 shrink-0" />
-            <span className="font-mono text-sm text-gray-200 truncate">
-              {connectUrl}
-            </span>
+        <div className="w-full bg-flux-card border border-flux-border rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <QrCode className="w-4 h-4 text-flux-accent shrink-0" />
+            <span className="text-xs text-gray-400">PC IP:</span>
+            <input
+              type="text"
+              value={customIp}
+              onChange={(e) => setCustomIp(e.target.value)}
+              className="px-2.5 py-1 rounded-lg bg-flux-surface border border-flux-border text-xs font-mono text-white focus:outline-none focus:border-flux-accent w-32"
+            />
+            <span className="text-xs font-mono text-gray-400">:{port}</span>
           </div>
+
           <button
             onClick={handleCopyUrl}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-flux-surface hover:bg-flux-hover text-xs font-medium text-gray-200 border border-flux-border transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-flux-surface hover:bg-flux-hover text-xs font-semibold text-gray-200 border border-flux-border transition-colors w-full sm:w-auto justify-center shrink-0"
           >
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400">Copied</span>
+                <span className="text-emerald-400">Copied Link</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5 text-gray-400" />
-                <span>Copy</span>
+                <span>Copy Link</span>
               </>
             )}
           </button>
