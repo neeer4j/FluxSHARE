@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio } from 'lucide-react';
+import { Radio, QrCode } from 'lucide-react';
 import { NETWORK_CONSTANTS, type DeviceOS } from '@fluxshare/shared';
 import { Badge } from '@fluxshare/ui';
 
@@ -10,19 +10,23 @@ export interface HeaderBarProps {
   readonly activeFilter: OSFilter;
   readonly onFilterChange: (filter: OSFilter) => void;
   readonly showFilter?: boolean;
+  readonly onOpenConnectMobile?: () => void;
 }
 
 export function HeaderBar({
   platform,
   activeFilter,
   onFilterChange,
-  showFilter = true
+  showFilter = true,
+  onOpenConnectMobile
 }: HeaderBarProps): React.JSX.Element {
   const filterOptions: readonly { id: OSFilter; label: string }[] = [
     { id: 'all', label: 'All Devices' },
     { id: 'macos', label: 'macOS' },
     { id: 'windows', label: 'Windows 11' },
-    { id: 'linux', label: 'Linux' }
+    { id: 'linux', label: 'Linux' },
+    { id: 'ios', label: 'iOS' },
+    { id: 'android', label: 'Android' }
   ];
 
   return (
@@ -59,11 +63,24 @@ export function HeaderBar({
         </div>
       )}
 
-      {/* Right: Platform indicator */}
-      <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
-        <span>Host Platform:</span>
-        <Badge label={platform.toUpperCase()} className="!py-0.5" />
+      {/* Right: Connect Mobile QR Button & Platform indicator */}
+      <div className="flex items-center gap-4">
+        {onOpenConnectMobile && (
+          <button
+            onClick={onOpenConnectMobile}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-flux-accent to-indigo-500 text-flux-bg text-xs font-bold shadow-glow hover:opacity-95 transition-all active:scale-95"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Connect Mobile</span>
+          </button>
+        )}
+
+        <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+          <span>Host Platform:</span>
+          <Badge label={platform.toUpperCase()} className="!py-0.5" />
+        </div>
       </div>
     </header>
   );
 }
+

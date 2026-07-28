@@ -1,5 +1,5 @@
 import React from 'react';
-import { Laptop, Monitor, Server, Apple } from 'lucide-react';
+import { Laptop, Monitor, Server, Apple, Smartphone, Tablet, Globe } from 'lucide-react';
 import type { DeviceOS } from '@fluxshare/shared';
 
 export interface DeviceAvatarProps {
@@ -21,10 +21,32 @@ export function DeviceAvatar({
         return <Monitor className="w-6 h-6" />;
       case 'linux':
         return <Server className="w-6 h-6" />;
+      case 'ios':
+        return <Smartphone className="w-6 h-6" />;
+      case 'android':
+        return <Tablet className="w-6 h-6" />;
+      case 'web':
+        return <Globe className="w-6 h-6" />;
       default:
         return <Monitor className="w-6 h-6" />;
     }
   };
+
+  const getWatermarkIcon = () => {
+    switch (os) {
+      case 'macos':
+      case 'ios':
+        return <Apple className="w-3 h-3" />;
+      case 'android':
+        return <Smartphone className="w-3 h-3" />;
+      case 'web':
+        return <Globe className="w-3 h-3" />;
+      default:
+        return null;
+    }
+  };
+
+  const watermark = getWatermarkIcon();
 
   return (
     <div
@@ -37,11 +59,12 @@ export function DeviceAvatar({
       {getIcon()}
 
       {/* Mini OS watermark badge */}
-      {os === 'macos' && (
+      {watermark && (
         <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-flux-surface border border-flux-border flex items-center justify-center text-gray-300">
-          <Apple className="w-3 h-3" />
+          {watermark}
         </div>
       )}
     </div>
   );
 }
+

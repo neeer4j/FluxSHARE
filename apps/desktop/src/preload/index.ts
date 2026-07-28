@@ -6,11 +6,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 export interface FluxShareApi {
   readonly getAppVersion: () => Promise<string>;
   readonly getPlatform: () => Promise<string>;
+  readonly getLocalIp: () => Promise<string>;
 }
 
 const api: FluxShareApi = {
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
-  getPlatform: () => ipcRenderer.invoke('app:get-platform')
+  getPlatform: () => ipcRenderer.invoke('app:get-platform'),
+  getLocalIp: () => ipcRenderer.invoke('app:get-local-ip')
 };
 
 if (process.contextIsolated) {

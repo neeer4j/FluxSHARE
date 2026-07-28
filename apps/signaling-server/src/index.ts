@@ -1,6 +1,7 @@
 import http from 'http';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { NETWORK_CONSTANTS } from '@fluxshare/shared';
 import { isSignalingMessage, type SignalingMessage } from '@fluxshare/protocol';
@@ -8,6 +9,7 @@ import { createLogger } from '@fluxshare/utils';
 
 const logger = createLogger('SignalingServer', 'info');
 const PORT = Number(process.env.PORT) || NETWORK_CONSTANTS.DEFAULT_SIGNALING_PORT;
+const HOST = '0.0.0.0';
 
 const app = express();
 app.use(cors());
@@ -20,6 +22,14 @@ app.get('/health', (_req, res) => {
     version: NETWORK_CONSTANTS.PROTOCOL_VERSION,
     timestamp: Date.now()
   });
+});
+
+// Serve built web/desktop renderer static files for zero-install mobile access
+const staticPath = path.resolve(__dirname, '../../desktop/dist/renderer');
+app.use(express.static(staticPath));
+
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(staticPath, 'index.html'));
 });
 
 const server = http.createServer(app);
@@ -74,7 +84,8 @@ wss.on('connection', (ws: WebSocket, req) => {
   });
 });
 
-server.listen(PORT, () => {
-  logger.info(`Signaling server listening on http://localhost:${PORT}`);
-  logger.info(`WebSocket endpoint active on ws://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  logger.info(`Signaling server listening on http://${HOST}:${PORT}`);
+  logger.info(`WebSocket endpoint active on ws://${HOST}:${PORT}`);
 });
+

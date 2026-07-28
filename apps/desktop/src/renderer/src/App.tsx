@@ -20,6 +20,7 @@ import {
   type HistoryItem
 } from './features/transfer/TransferHistoryTable';
 import { SettingsPanel } from './features/settings/SettingsPanel';
+import { ConnectMobileModal } from './components/modals/ConnectMobileModal';
 
 const MOCK_PEERS: readonly Device[] = [
   {
@@ -39,6 +40,24 @@ const MOCK_PEERS: readonly Device[] = [
     port: 54321,
     status: 'online',
     lastSeen: Date.now() - 2000
+  },
+  {
+    id: 'peer-mobile-01',
+    name: 'iPhone 15 Pro Max',
+    os: 'ios',
+    ip: '192.168.1.155',
+    port: 54321,
+    status: 'online',
+    lastSeen: Date.now() - 500
+  },
+  {
+    id: 'peer-mobile-02',
+    name: 'Samsung Galaxy S24 Ultra',
+    os: 'android',
+    ip: '192.168.1.189',
+    port: 54321,
+    status: 'online',
+    lastSeen: Date.now() - 1500
   },
   {
     id: 'peer-gamma-03',
@@ -71,6 +90,7 @@ export function App(): React.JSX.Element {
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>('peer-alpha-01');
   const [appVersion, setAppVersion] = useState<string>(NETWORK_CONSTANTS.PROTOCOL_VERSION);
   const [platform, setPlatform] = useState<string>('unknown');
+  const [localIp, setLocalIp] = useState<string>('192.168.1.142');
 
   // Transfer History State
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([...INITIAL_HISTORY]);
@@ -79,8 +99,9 @@ export function App(): React.JSX.Element {
   const [deviceName, setDeviceName] = useState<string>('My FluxShare Desktop');
   const [port, setPort] = useState<number>(NETWORK_CONSTANTS.DEFAULT_SIGNALING_PORT);
 
-  // Transfer Simulation Modal State
+  // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConnectMobileOpen, setIsConnectMobileOpen] = useState(false);
   const [modalStep, setModalStep] = useState<TransferModalStep>('confirm');
   const [simulatedFile, setSimulatedFile] = useState<FileMetadata | null>(null);
   const [transferProgress, setTransferProgress] = useState(0);
@@ -92,15 +113,19 @@ export function App(): React.JSX.Element {
     async function fetchSystemInfo() {
       if (window.fluxshare) {
         try {
-          const [ver, plat] = await Promise.all([
+          const [ver, plat, ip] = await Promise.all([
             window.fluxshare.getAppVersion(),
-            window.fluxshare.getPlatform()
+            window.fluxshare.getPlatform(),
+            window.fluxshare.getLocalIp()
           ]);
           setAppVersion(ver);
           setPlatform(plat);
+          if (ip) setLocalIp(ip);
         } catch (err) {
           console.warn('Failed to load system info from IPC:', err);
         }
+      } else if (window.location.hostname && window.location.hostname !== 'localhost') {
+        setLocalIp(window.location.hostname);
       }
     }
     fetchSystemInfo();
@@ -197,6 +222,7 @@ export function App(): React.JSX.Element {
           activeFilter={osFilter}
           onFilterChange={setOsFilter}
           showFilter={activeTab === 'nearby'}
+          onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
         />
 
         {/* Dynamic Center View */}
@@ -244,6 +270,14 @@ export function App(): React.JSX.Element {
         <StatusBar isTransferring={modalStep === 'transferring'} />
       </main>
 
+      {/* Zero-Install Mobile PWA QR Code Modal */}
+      <ConnectMobileModal
+        isOpen={isConnectMobileOpen}
+        onClose={() => setIsConnectMobileOpen(false)}
+        localIp={localIp}
+        port={port}
+      />
+
       {/* Interactive Transfer Simulation Modal */}
       {simulatedFile && selectedDevice && (
         <TransferModal
@@ -264,3 +298,4 @@ export function App(): React.JSX.Element {
   );
 }
 export default App;
+

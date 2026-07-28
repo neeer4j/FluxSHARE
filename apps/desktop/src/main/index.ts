@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
+import os from 'os';
 import { NETWORK_CONSTANTS } from '@fluxshare/shared';
 import { createLogger } from '@fluxshare/utils';
 
@@ -64,6 +65,18 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('app:get-platform', () => {
     return process.platform;
+  });
+
+  ipcMain.handle('app:get-local-ip', () => {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+    return '127.0.0.1';
   });
 }
 

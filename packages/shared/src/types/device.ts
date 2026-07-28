@@ -1,7 +1,7 @@
 /**
  * Supported operating systems for FluxShare peers.
  */
-export type DeviceOS = 'windows' | 'macos' | 'linux';
+export type DeviceOS = 'windows' | 'macos' | 'linux' | 'ios' | 'android' | 'web';
 
 /**
  * Online availability status of a discovered device on the LAN.

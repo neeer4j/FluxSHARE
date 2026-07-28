@@ -32,7 +32,10 @@ const STATUS_COLOR_MAP: Record<DeviceStatus, { text: string; bg: string; dot: st
 const OS_LABEL_MAP: Record<DeviceOS, string> = {
   macos: 'macOS',
   windows: 'Windows 11',
-  linux: 'Linux'
+  linux: 'Linux',
+  ios: 'iOS',
+  android: 'Android',
+  web: 'Web'
 };
 
 export function Badge({
