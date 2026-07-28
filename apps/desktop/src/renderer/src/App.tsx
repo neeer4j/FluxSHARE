@@ -8,7 +8,6 @@ import {
   HeaderBar,
   type OSFilter
 } from './components/layout/HeaderBar';
-import { StatusBar } from './components/layout/StatusBar';
 import { NearbyDevicesList } from './features/discovery/NearbyDevicesList';
 import { DropZone } from './features/transfer/DropZone';
 import {
@@ -226,48 +225,56 @@ export function App(): React.JSX.Element {
         />
 
         {/* Dynamic Center View */}
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-6">
           {activeTab === 'nearby' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
-              {/* Left Column: Discovered LAN Peers (7 cols) */}
-              <div className="lg:col-span-7">
-                <NearbyDevicesList
-                  devices={MOCK_PEERS}
-                  selectedDeviceId={selectedPeerId}
-                  onSelectDevice={setSelectedPeerId}
-                  activeOSFilter={osFilter}
-                />
-              </div>
+            <div className="max-w-6xl mx-auto space-y-6">
+              {/* DropZone File Area */}
+              <DropZone
+                selectedDevice={selectedDevice}
+                onStartTransfer={handleStartTransfer}
+              />
 
-              {/* Right Column: File DropZone (5 cols) */}
-              <div className="lg:col-span-5 h-full">
-                <DropZone
-                  selectedDevice={selectedDevice}
-                  onStartTransfer={handleStartTransfer}
-                />
-              </div>
+              {/* Discovered Nearby Devices Grid */}
+              <NearbyDevicesList
+                devices={MOCK_PEERS}
+                selectedDeviceId={selectedPeerId}
+                onSelectDevice={setSelectedPeerId}
+                onSendFile={(dev) => {
+                  setSelectedPeerId(dev.id);
+                  const sampleFile: FileMetadata = {
+                    id: `file-${Date.now()}`,
+                    name: 'Photos_Archive.zip',
+                    size: 1024 * 1024 * 18.5,
+                    mimeType: 'application/zip',
+                    sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
+                  };
+                  handleStartTransfer([sampleFile]);
+                }}
+                activeOSFilter={osFilter}
+              />
             </div>
           )}
 
           {activeTab === 'history' && (
-            <TransferHistoryTable
-              items={historyItems}
-              onClearHistory={() => setHistoryItems([])}
-            />
+            <div className="max-w-6xl mx-auto">
+              <TransferHistoryTable
+                items={historyItems}
+                onClearHistory={() => setHistoryItems([])}
+              />
+            </div>
           )}
 
           {activeTab === 'settings' && (
-            <SettingsPanel
-              initialDeviceName={deviceName}
-              initialPort={port}
-              downloadPath="C:\Users\neera\Downloads\FluxShare"
-              onSaveSettings={handleSaveSettings}
-            />
+            <div className="max-w-4xl mx-auto">
+              <SettingsPanel
+                initialDeviceName={deviceName}
+                initialPort={port}
+                downloadPath="C:\Users\neera\Downloads\FluxShare"
+                onSaveSettings={handleSaveSettings}
+              />
+            </div>
           )}
         </div>
-
-        {/* Footer Status Bar */}
-        <StatusBar isTransferring={modalStep === 'transferring'} />
       </main>
 
       {/* Zero-Install Mobile PWA QR Code Modal */}
