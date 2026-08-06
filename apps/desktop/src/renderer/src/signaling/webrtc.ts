@@ -96,6 +96,15 @@ export class WebRtcManager {
               receivedBytes: 0,
               receivedIndices: new Set<number>()
             });
+            // initialize partial persistence on main process
+            try {
+              if ((window as any).fluxshare && typeof (window as any).fluxshare.partialInit === 'function') {
+                // fire-and-forget
+                (window as any).fluxshare.partialInit(fileId, { fileName: data.payload.fileName, fileSize: data.payload.fileSize });
+              }
+            } catch (e) {
+              console.warn('partialInit failed', e);
+            }
           } else if (data && data.type === 'CHUNK_HEADER') {
             // metadata header for the next binary chunk
             const fileId = data.fileId as string;
@@ -169,17 +178,27 @@ export class WebRtcManager {
           for (const [fileId, pending] of this.pendingFiles.entries()) {
             const expected = (pending as any).__nextChunkIndex as number | undefined;
             if (typeof expected === 'number') {
-              pending.receivedBuffers.push(arr);
+              // persist chunk to disk via main process to allow resume across restarts
               pending.receivedBytes += arr.byteLength;
               if (pending.receivedIndices) pending.receivedIndices.add(expected);
               // clear the expected chunk index
               delete (pending as any).__nextChunkIndex;
+              try {
+                if ((window as any).fluxshare && typeof (window as any).fluxshare.partialWrite === 'function') {
+                  const b = new Uint8Array(arr);
+                  const base64 = uint8ArrayToBase64(b);
+                  // fire-and-forget
+                  (window as any).fluxshare.partialWrite(fileId, expected, base64).catch((e: any) => {
+                    console.warn('partialWrite failed', e);
+                  });
+                }
+              } catch (e) {
+                console.warn('Failed to persist chunk', e);
+              }
 
               // send ACK for the received chunk
               try {
-                this.dc?.send(
-                  JSON.stringify({ type: 'CHUNK_ACK', fileId, chunkIndex: expected, bytesReceived: pending.receivedBytes })
-                );
+                this.dc?.send(JSON.stringify({ type: 'CHUNK_ACK', fileId, chunkIndex: expected, bytesReceived: pending.receivedBytes }));
               } catch (e) {}
               break;
             }
@@ -363,21 +382,27 @@ export class WebRtcManager {
 
     // cleanup
     const finalState = this.sendingState.get(fileId);
-    if (finalState) {
-      for (const timerId of finalState.ackTimers.values()) clearTimeout(timerId);
-      this.sendingState.delete(fileId);
-    }
-  }
+            if (pending) {
+              // assemble via main process (reads persisted chunks)
+              try {
+                if ((window as any).fluxshare && typeof (window as any).fluxshare.partialAssemble === 'function') {
+                  (window as any).fluxshare.partialAssemble(fileId, pending.fileName).then((res: any) => {
+                    if (res?.ok) {
+                      console.info('Assembled file on disk:', res.path);
+                      // cleanup partials
+                      try {
+                        if ((window as any).fluxshare && typeof (window as any).fluxshare.partialDelete === 'function') {
+                          (window as any).fluxshare.partialDelete(fileId).catch(() => {});
+                        }
+                      } catch (e) {}
+                    } else {
+                      console.warn('Failed to assemble file on disk', res?.error);
+                    }
+                  });
+                }
+              } catch (e) {
+                console.warn('Failed to assemble persisted file', e);
+              }
 
-  public async waitForOpen(timeoutMs = 15000): Promise<void> {
-    const start = Date.now();
-    return new Promise((resolve, reject) => {
-      const check = () => {
-        if (this.dc && this.dc.readyState === 'open') return resolve();
-        if (Date.now() - start > timeoutMs) return reject(new Error('DataChannel open timeout'));
-        setTimeout(check, 100);
-      };
-      check();
-    });
-  }
-}
+              this.pendingFiles.delete(fileId);
+            }

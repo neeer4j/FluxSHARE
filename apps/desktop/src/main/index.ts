@@ -5,6 +5,8 @@ import { NETWORK_CONSTANTS } from '@fluxshare/shared';
 import { createLogger } from '@fluxshare/utils';
 import fs from 'fs/promises';
 import { mkdirSync } from 'fs';
+import { app as electronApp } from 'electron';
+import base64 from 'base-64';
 
 const logger = createLogger('ElectronMain', 'info');
 
@@ -101,6 +103,103 @@ function setupIpcHandlers(): void {
       const buffer = Buffer.from(args.dataBase64, 'base64');
       await fs.writeFile(filePath, buffer);
       return { ok: true, path: filePath };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  // Partial chunk persistence handlers
+  const PARTIALS_BASE = path.join(electronApp.getPath('userData'), 'fluxshare', 'partials');
+
+  ipcMain.handle('partial:init', async (_event, args: { fileId: string; meta: { fileName: string; fileSize: number } }) => {
+    try {
+      const dir = path.join(PARTIALS_BASE, args.fileId);
+      mkdirSync(dir, { recursive: true });
+      const metaPath = path.join(dir, 'meta.json');
+      const meta = { fileName: args.meta.fileName, fileSize: args.meta.fileSize, receivedIndices: [] as number[] };
+      await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('partial:write', async (_event, args: { fileId: string; chunkIndex: number; dataBase64: string }) => {
+    try {
+      const dir = path.join(PARTIALS_BASE, args.fileId);
+      mkdirSync(dir, { recursive: true });
+      const chunkPath = path.join(dir, `chunk-${args.chunkIndex}.bin`);
+      const buffer = Buffer.from(args.dataBase64, 'base64');
+      await fs.writeFile(chunkPath, buffer);
+      // update meta
+      const metaPath = path.join(dir, 'meta.json');
+      let meta: any = { receivedIndices: [] };
+      try {
+        const raw = await fs.readFile(metaPath, 'utf8');
+        meta = JSON.parse(raw);
+      } catch (e) {
+        meta = { receivedIndices: [] };
+      }
+      if (!meta.receivedIndices) meta.receivedIndices = [];
+      if (!meta.receivedIndices.includes(args.chunkIndex)) meta.receivedIndices.push(args.chunkIndex);
+      await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('partial:get-meta', async (_event, args: { fileId: string }) => {
+    try {
+      const metaPath = path.join(PARTIALS_BASE, args.fileId, 'meta.json');
+      const raw = await fs.readFile(metaPath, 'utf8');
+      const meta = JSON.parse(raw);
+      return { ok: true, meta };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('partial:assemble', async (_event, args: { fileId: string; filename: string; downloadPath?: string }) => {
+    try {
+      const dir = path.join(PARTIALS_BASE, args.fileId);
+      const metaPath = path.join(dir, 'meta.json');
+      const raw = await fs.readFile(metaPath, 'utf8');
+      const meta = JSON.parse(raw);
+      const indices: number[] = meta.receivedIndices || [];
+      indices.sort((a, b) => a - b);
+      const buffers: Buffer[] = [];
+      for (const idx of indices) {
+        const chunkPath = path.join(dir, `chunk-${idx}.bin`);
+        const buf = await fs.readFile(chunkPath);
+        buffers.push(buf);
+      }
+      const final = Buffer.concat(buffers);
+      const downloadsDir = args.downloadPath ?? path.join(os.homedir(), 'Downloads', 'FluxShare');
+      mkdirSync(downloadsDir, { recursive: true });
+      const outPath = path.join(downloadsDir, args.filename);
+      await fs.writeFile(outPath, final);
+      return { ok: true, path: outPath };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('partial:delete', async (_event, args: { fileId: string }) => {
+    try {
+      const dir = path.join(PARTIALS_BASE, args.fileId);
+      // remove files
+      // conservative: attempt to unlink files
+      try {
+        const files = await fs.readdir(dir);
+        for (const f of files) {
+          await fs.unlink(path.join(dir, f));
+        }
+      } catch (e) {}
+      try {
+        await fs.rmdir(dir);
+      } catch (e) {}
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: String(err) };
     }
