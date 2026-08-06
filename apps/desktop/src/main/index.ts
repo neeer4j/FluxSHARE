@@ -3,6 +3,8 @@ import path from 'path';
 import os from 'os';
 import { NETWORK_CONSTANTS } from '@fluxshare/shared';
 import { createLogger } from '@fluxshare/utils';
+import fs from 'fs/promises';
+import { mkdirSync } from 'fs';
 
 const logger = createLogger('ElectronMain', 'info');
 
@@ -89,6 +91,19 @@ function setupIpcHandlers(): void {
       }
     }
     return fallbackIp !== '127.0.0.1' ? fallbackIp : '192.168.1.6';
+  });
+
+  ipcMain.handle('file:save', async (_event, args: { filename: string; dataBase64: string; downloadPath?: string }) => {
+    const downloadsDir = args.downloadPath ?? path.join(os.homedir(), 'Downloads', 'FluxShare');
+    try {
+      mkdirSync(downloadsDir, { recursive: true });
+      const filePath = path.join(downloadsDir, args.filename);
+      const buffer = Buffer.from(args.dataBase64, 'base64');
+      await fs.writeFile(filePath, buffer);
+      return { ok: true, path: filePath };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
   });
 }
 

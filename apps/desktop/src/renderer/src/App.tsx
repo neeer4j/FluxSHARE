@@ -31,6 +31,7 @@ export function App(): React.JSX.Element {
   // Settings State
   const [deviceName, setDeviceName] = useState<string>('My FluxShare Desktop');
   const [port, setPort] = useState<number>(NETWORK_CONSTANTS.DEFAULT_SIGNALING_PORT);
+  const [deviceId] = useState<string>(() => (crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `dev-${Date.now()}`));
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +42,8 @@ export function App(): React.JSX.Element {
   const [transferSpeed, setTransferSpeed] = useState(1024 * 1024 * 18.4); // 18.4 MB/s
   const [etaSeconds, setEtaSeconds] = useState(5);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const signalingRef = useRef<null | import('./signaling/client').SignalingClient>(null);
+  const managersRef = useRef<Map<string, import('./signaling/webrtc').WebRtcManager>>(new Map());
 
   useEffect(() => {
     // Detect mobile device vs PC
@@ -67,6 +70,100 @@ export function App(): React.JSX.Element {
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Setup signaling client
+  useEffect(() => {
+    // build device descriptor
+    const localDevice: Device = {
+      id: deviceId,
+      name: deviceName,
+      os: 'web',
+      ip: localIp,
+      port: port,
+      status: 'online',
+      lastSeen: Date.now()
+    };
+
+    // lazy import to avoid unresolved module during SSR/dev build
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignalingClient, buildWsUrl } = require('./signaling/client');
+
+    const wsUrl = buildWsUrl(localIp || 'localhost', port);
+    const client = new SignalingClient(wsUrl, localDevice);
+
+    client.setHandlers({
+      onPeersList: (peers) => {
+        setDevices(peers);
+      },
+      onPeerAnnounce: (peer) => {
+        setDevices((prev) => {
+          const exists = prev.find((p) => p.id === peer.id);
+          if (exists) {
+            return prev.map((p) => (p.id === peer.id ? peer : p));
+          }
+          return [peer, ...prev];
+        });
+      },
+      onPeerLeave: (peerId) => {
+        setDevices((prev) => prev.filter((p) => p.id !== peerId));
+      },
+      onTransferOffer: (msg) => {
+        // Open modal to confirm incoming transfer
+        const file = msg.payload.files[0];
+        setSelectedPeerId(msg.senderId);
+        setSimulatedFile(file);
+        setModalStep('confirm');
+        setIsModalOpen(true);
+      }
+      ,
+      onWebRtcOffer: (msg) => {
+        try {
+          // @ts-expect-error payload
+          const sdp = msg.payload.sdp as string;
+          const sender = msg.senderId;
+          const { WebRtcManager } = require('./signaling/webrtc');
+          let mgr = managersRef.current.get(sender);
+          if (!mgr) {
+            mgr = new WebRtcManager(deviceId, sender, (m: any) => signalingRef.current?.send(m));
+            managersRef.current.set(sender, mgr);
+          }
+          mgr.handleRemoteOffer(sdp);
+        } catch (err) {
+          console.warn('Failed to handle incoming WEBRTC_OFFER', err);
+        }
+      },
+      onWebRtcAnswer: (msg) => {
+        try {
+          // @ts-expect-error payload
+          const sdp = msg.payload.sdp as string;
+          const sender = msg.senderId;
+          const mgr = managersRef.current.get(sender);
+          if (mgr) mgr.handleRemoteAnswer(sdp);
+        } catch (err) {
+          console.warn('Failed to handle WEBRTC_ANSWER', err);
+        }
+      },
+      onIceCandidate: (msg) => {
+        try {
+          // @ts-expect-error payload
+          const candidate = msg.payload.candidate as string;
+          const sender = msg.senderId;
+          const mgr = managersRef.current.get(sender);
+          if (mgr) mgr.handleRemoteIce(candidate);
+        } catch (err) {
+          console.warn('Failed to handle ICE candidate', err);
+        }
+      }
+    });
+
+    signalingRef.current = client;
+    client.connect();
+
+    return () => {
+      client.disconnect();
+      signalingRef.current = null;
+    };
+  }, [deviceId, deviceName, port, localIp]);
 
   const handleAddDemoDevice = () => {
     const demoDevices: Device[] = [
@@ -103,14 +200,50 @@ export function App(): React.JSX.Element {
     devices.find((p) => p.id === selectedPeerId) ?? devices[0] ?? null;
 
   // Triggered when user stages files and clicks "Send to..."
-  const handleStartTransfer = (files: readonly FileMetadata[]) => {
+  const handleStartTransfer = async (files: readonly File[]) => {
     if (files.length === 0 || !selectedDevice) return;
     const fileToStage = files[0];
     if (!fileToStage) return;
-    setSimulatedFile(fileToStage);
+    // send signaling TRANSFER_OFFER
+    const sessionId = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `sess-${Date.now()}`;
+    const msg = {
+      type: 'TRANSFER_OFFER',
+      senderId: deviceId,
+      targetId: selectedDevice.id,
+      timestamp: Date.now(),
+      payload: {
+        sessionId,
+        files: [fileToStage],
+        totalBytes: fileToStage.size
+      }
+    } as unknown as import('@fluxshare/protocol').SignalingMessage;
+
+    signalingRef.current?.send(msg);
+
+    // locally show outbound modal
+    setSimulatedFile({
+      id: `filemeta-${Date.now()}`,
+      name: fileToStage.name,
+      size: fileToStage.size,
+      mimeType: fileToStage.type,
+      sha256: ''
+    } as unknown as import('@fluxshare/shared').FileMetadata);
     setModalStep('confirm');
     setTransferProgress(0);
     setIsModalOpen(true);
+
+    // create a WebRTC manager and start negotiation as initiator
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { WebRtcManager } = require('./signaling/webrtc');
+      const mgr = new WebRtcManager(deviceId, selectedDevice.id, (m: any) => signalingRef.current?.send(m));
+      managersRef.current.set(selectedDevice.id, mgr);
+      await mgr.initiateNegotiation();
+      await mgr.waitForOpen();
+      await mgr.sendFile(fileToStage);
+    } catch (err) {
+      console.warn('Failed to establish WebRTC transfer', err);
+    }
   };
 
   // User accepts the incoming file transfer simulation
@@ -136,6 +269,18 @@ export function App(): React.JSX.Element {
       if (currentProgress >= 100) {
         if (timerRef.current) clearInterval(timerRef.current);
         setModalStep('completed');
+
+        // Notify remote that transfer accepted/completed
+        const acceptMsg = {
+          type: 'TRANSFER_ACCEPT',
+          senderId: deviceId,
+          targetId: selectedDevice?.id ?? undefined,
+          timestamp: Date.now(),
+          payload: {
+            sessionId: `sess-${Date.now()}`
+          }
+        } as unknown as import('@fluxshare/protocol').SignalingMessage;
+        signalingRef.current?.send(acceptMsg);
 
         // Append to history table
         if (simulatedFile && selectedDevice) {
@@ -204,16 +349,12 @@ export function App(): React.JSX.Element {
               onOpenConnectMobile={() => setIsConnectMobileOpen(true)}
               onAddDemoDevice={handleAddDemoDevice}
               onSendFile={(dev) => {
-                setSelectedPeerId(dev.id);
-                const sampleFile: FileMetadata = {
-                  id: `file-${Date.now()}`,
-                  name: 'Photos_Archive.zip',
-                  size: 1024 * 1024 * 18.5,
-                  mimeType: 'application/zip',
-                  sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
-                };
-                handleStartTransfer([sampleFile]);
-              }}
+                  setSelectedPeerId(dev.id);
+                  const blob = new Blob(['sample content'], { type: 'application/zip' });
+                  const sampleFile = new File([blob], `Photos_Archive_${Date.now()}.zip`, { type: 'application/zip' });
+                  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                  handleStartTransfer([sampleFile]);
+                }}
             />
           </div>
         )}

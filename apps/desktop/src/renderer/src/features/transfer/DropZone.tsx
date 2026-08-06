@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileText, X, Send } from 'lucide-react';
-import type { Device, FileMetadata } from '@fluxshare/shared';
+import type { Device } from '@fluxshare/shared';
 import { formatFileSize } from '@fluxshare/utils';
 
 export interface DropZoneProps {
   readonly devices?: readonly Device[];
   readonly selectedDevice: Device | null;
   readonly onSelectDevice?: (deviceId: string) => void;
-  readonly onStartTransfer: (files: readonly FileMetadata[]) => void;
+  readonly onStartTransfer: (files: readonly File[]) => void;
   readonly onOpenConnectMobile?: () => void;
   readonly onAddDemoDevice?: () => void;
   readonly isMobile?: boolean;
@@ -22,37 +22,25 @@ export function DropZone({
   onAddDemoDevice,
   isMobile = false
 }: DropZoneProps): React.JSX.Element {
-  const [stagedFiles, setStagedFiles] = useState<FileMetadata[]>([]);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newFiles: FileMetadata[] = Array.from(files).map((f, i) => ({
-      id: `file-${Date.now()}-${i}`,
-      name: f.name,
-      size: f.size,
-      mimeType: f.type || 'application/octet-stream',
-      sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
-    }));
-
+    const newFiles: File[] = Array.from(files);
     setStagedFiles((prev) => [...prev, ...newFiles]);
   };
 
   const addSampleFile = () => {
-    const mockFile: FileMetadata = {
-      id: `file-${Date.now()}`,
-      name: 'Sample_Document.pdf',
-      size: 1024 * 1024 * 14.2,
-      mimeType: 'application/pdf',
-      sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
-    };
-    setStagedFiles((prev) => [...prev, mockFile]);
+    const blob = new Blob(['Sample content'], { type: 'application/pdf' });
+    const file = new File([blob], `Sample_Document_${Date.now()}.pdf`, { type: 'application/pdf' });
+    setStagedFiles((prev) => [...prev, file]);
   };
 
-  const removeFile = (id: string) => {
-    setStagedFiles((prev) => prev.filter((f) => f.id !== id));
+  const removeFile = (name: string) => {
+    setStagedFiles((prev) => prev.filter((f) => f.name !== name));
   };
 
   const handleSendAction = () => {
@@ -146,9 +134,9 @@ export function DropZone({
 
           {/* Staged File Items */}
           <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-            {stagedFiles.map((file) => (
+            {stagedFiles.map((file, idx) => (
               <div
-                key={file.id}
+                key={`${file.name}-${file.size}-${idx}`}
                 className="p-3 rounded-xl bg-flux-surface border border-flux-border flex items-center justify-between text-xs"
               >
                 <div className="flex items-center gap-2.5 truncate">
@@ -162,7 +150,7 @@ export function DropZone({
                     {formatFileSize(file.size)}
                   </span>
                   <button
-                    onClick={() => removeFile(file.id)}
+                    onClick={() => removeFile(file.name)}
                     className="text-gray-400 hover:text-red-400 transition-colors"
                   >
                     <X className="w-4 h-4" />
