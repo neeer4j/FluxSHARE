@@ -6,6 +6,7 @@ type PendingFile = {
   totalSize: number;
   receivedBuffers: Uint8Array[];
   receivedBytes: number;
+  receivedIndices: Set<number>;
 };
 
 function uint8ArrayToBase64(u8: Uint8Array): string {
@@ -17,16 +18,6 @@ function uint8ArrayToBase64(u8: Uint8Array): string {
   return btoa(binary);
 }
 
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
 export class WebRtcManager {
   private pc: RTCPeerConnection | null = null;
   private dc: RTCDataChannel | null = null;
@@ -34,6 +25,19 @@ export class WebRtcManager {
   private localId: string;
   private signalingSend: (msg: SignalingMessage) => void;
   private pendingFiles = new Map<string, PendingFile>();
+  // sending state per file
+  private sendingState = new Map<
+    string,
+    {
+      file: File;
+      totalChunks: number;
+      chunkSize: number;
+      unacked: Set<number>;
+      ackTimers: Map<number, number>;
+      nextToSend: number;
+      windowSize: number;
+    }
+  >();
 
   constructor(localId: string, remoteId: string, signalingSend: (msg: SignalingMessage) => void) {
     this.remoteId = remoteId;
@@ -89,8 +93,43 @@ export class WebRtcManager {
               fileName: data.payload.fileName,
               totalSize: data.payload.fileSize,
               receivedBuffers: [],
-              receivedBytes: 0
+              receivedBytes: 0,
+              receivedIndices: new Set<number>()
             });
+          } else if (data && data.type === 'CHUNK_HEADER') {
+            // metadata header for the next binary chunk
+            const fileId = data.fileId as string;
+            const pending = this.pendingFiles.get(fileId);
+            if (!pending) {
+              this.pendingFiles.set(fileId, {
+                fileName: data.payload.fileName ?? 'unknown',
+                totalSize: data.payload.fileSize ?? 0,
+                receivedBuffers: [],
+                receivedBytes: 0,
+                receivedIndices: new Set<number>()
+              });
+            }
+            // store last expected chunk index on map
+            (this.pendingFiles.get(fileId) as any).__nextChunkIndex = data.payload.chunkIndex;
+          } else if (data && data.type === 'CHUNK_ACK') {
+            // sender will handle ACK messages; update sending state
+            try {
+              const fileId = data.fileId as string;
+              const chunkIndex = data.chunkIndex as number;
+              const state = this.sendingState.get(fileId);
+              if (state && state.unacked.has(chunkIndex)) {
+                state.unacked.delete(chunkIndex);
+                const timerId = state.ackTimers.get(chunkIndex);
+                if (timerId) {
+                  clearTimeout(timerId);
+                  state.ackTimers.delete(chunkIndex);
+                }
+                // advance nextToSend if possible
+                while (state.nextToSend < state.totalChunks && !state.unacked.has(state.nextToSend)) {
+                  state.nextToSend++;
+                }
+              }
+            } catch (e) {}
           } else if (data && data.type === 'FILE_COMPLETE') {
             const fileId = data.fileId as string;
             const pending = this.pendingFiles.get(fileId);
@@ -123,26 +162,26 @@ export class WebRtcManager {
 
               this.pendingFiles.delete(fileId);
             }
-          } else if (data && data.type === 'CHUNK_ACK') {
-            // could be used to throttle sender if implemented
           }
         } else if (ev.data instanceof ArrayBuffer) {
           const arr = new Uint8Array(ev.data);
-          // assume single active file transfer (ordered channel)
-          const firstKey = this.pendingFiles.keys().next();
-          if (!firstKey.done) {
-            const fileId = firstKey.value;
-            const pending = this.pendingFiles.get(fileId);
-            if (pending) {
+          // find a pending file which has an expected next chunk index
+          for (const [fileId, pending] of this.pendingFiles.entries()) {
+            const expected = (pending as any).__nextChunkIndex as number | undefined;
+            if (typeof expected === 'number') {
               pending.receivedBuffers.push(arr);
               pending.receivedBytes += arr.byteLength;
+              if (pending.receivedIndices) pending.receivedIndices.add(expected);
+              // clear the expected chunk index
+              delete (pending as any).__nextChunkIndex;
 
-              // occasionally send ACK
-              if (pending.receivedBytes % (NETWORK_CONSTANTS.DEFAULT_CHUNK_SIZE_BYTES * 10) === 0) {
-                try {
-                  this.dc?.send(JSON.stringify({ type: 'CHUNK_ACK', fileId, bytesReceived: pending.receivedBytes }));
-                } catch (e) {}
-              }
+              // send ACK for the received chunk
+              try {
+                this.dc?.send(
+                  JSON.stringify({ type: 'CHUNK_ACK', fileId, chunkIndex: expected, bytesReceived: pending.receivedBytes })
+                );
+              } catch (e) {}
+              break;
             }
           }
         }
@@ -209,14 +248,22 @@ export class WebRtcManager {
     }
   }
 
-  public async sendFile(file: File) {
+  public getLastContiguousChunk(fileId: string): number {
+    const pending = this.pendingFiles.get(fileId);
+    if (!pending || !pending.receivedIndices) return -1;
+    let i = 0;
+    while (pending.receivedIndices.has(i)) i++;
+    return i - 1;
+  }
+
+  public async sendFile(file: File, startChunk = 0, fileIdParam?: string) {
     if (!this.dc || this.dc.readyState !== 'open') {
       console.warn('DataChannel not open');
       return;
     }
 
     const chunkSize = NETWORK_CONSTANTS.DEFAULT_CHUNK_SIZE_BYTES;
-    const fileId = `file-${Date.now()}`;
+    const fileId = fileIdParam ?? `file-${Date.now()}`;
 
     // compute SHA-256 for files <= 50MB for integrity
     let sha256Hex = '';
@@ -247,8 +294,22 @@ export class WebRtcManager {
     };
     this.dc.send(JSON.stringify(startMsg));
 
-    let offset = 0;
-    while (offset < file.size) {
+    // initialize sending state
+    this.sendingState.set(fileId, {
+      file,
+      totalChunks: Math.ceil(file.size / chunkSize),
+      chunkSize,
+      unacked: new Set<number>(),
+      ackTimers: new Map<number, number>(),
+      nextToSend: startChunk,
+      windowSize: 8
+    });
+
+    // send loop driven by nextToSend to allow resuming
+    const state = this.sendingState.get(fileId)!;
+    while (state.nextToSend < state.totalChunks) {
+      const chunkIndex = state.nextToSend;
+      const offset = chunkIndex * chunkSize;
       const slice = file.slice(offset, offset + chunkSize);
       // eslint-disable-next-line no-await-in-loop
       const chunk = await new Promise<ArrayBuffer>((res, rej) => {
@@ -258,19 +319,36 @@ export class WebRtcManager {
         fr.readAsArrayBuffer(slice);
       });
 
-      // send raw binary chunk
+      // sliding window: wait if too many unacked
+      while (state.unacked.size >= state.windowSize) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      // send header and binary
+      const header = { type: 'CHUNK_HEADER', fileId, payload: { chunkIndex, byteLength: chunk.byteLength, fileName: file.name, fileSize: file.size } };
       try {
+        this.dc.send(JSON.stringify(header));
         this.dc.send(chunk);
       } catch (err) {
         console.warn('Failed to send chunk over DataChannel', err);
         throw err;
       }
 
-      offset += chunkSize;
+      // track sending state
+      state.unacked.add(chunkIndex);
+      const t = window.setTimeout(() => {
+        if (state.unacked.has(chunkIndex)) {
+          state.nextToSend = Math.min(state.nextToSend, chunkIndex);
+        }
+      }, 5000);
+      state.ackTimers.set(chunkIndex, t);
+
+      state.nextToSend++;
 
       // throttle if bufferedAmount too high
       while (this.dc.bufferedAmount > NETWORK_CONSTANTS.MAX_BUFFERED_AMOUNT_BYTES) {
-        // wait for bufferedAmount to drain
+        // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 150));
       }
     }
@@ -282,6 +360,13 @@ export class WebRtcManager {
       payload: { sha256: sha256Hex, verified: true }
     };
     this.dc.send(JSON.stringify(completeMsg));
+
+    // cleanup
+    const finalState = this.sendingState.get(fileId);
+    if (finalState) {
+      for (const timerId of finalState.ackTimers.values()) clearTimeout(timerId);
+      this.sendingState.delete(fileId);
+    }
   }
 
   public async waitForOpen(timeoutMs = 15000): Promise<void> {

@@ -13,6 +13,8 @@ type Handlers = {
   onWebRtcOffer?: (msg: SignalingMessage) => void;
   onWebRtcAnswer?: (msg: SignalingMessage) => void;
   onIceCandidate?: (msg: SignalingMessage) => void;
+  onTransferResumeRequest?: (msg: SignalingMessage) => void;
+  onTransferResumeResponse?: (msg: SignalingMessage) => void;
   onRawMessage?: (msg: SignalingMessage) => void;
 };
 
@@ -86,6 +88,12 @@ export class SignalingClient {
 
         if (msg.type === 'WEBRTC_ICE_CANDIDATE' && this.handlers.onIceCandidate) {
           this.handlers.onIceCandidate(msg);
+        }
+        if (msg.type === 'TRANSFER_RESUME_REQUEST' && this.handlers.onTransferResumeRequest) {
+          this.handlers.onTransferResumeRequest(msg);
+        }
+        if (msg.type === 'TRANSFER_RESUME_RESPONSE' && this.handlers.onTransferResumeResponse) {
+          this.handlers.onTransferResumeResponse(msg);
         }
 
         if (this.handlers.onRawMessage) this.handlers.onRawMessage(msg);

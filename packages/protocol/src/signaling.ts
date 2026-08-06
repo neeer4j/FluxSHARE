@@ -14,6 +14,8 @@ export type SignalingMessageType =
   | 'TRANSFER_ACCEPT'
   | 'TRANSFER_REJECT'
   | 'TRANSFER_CANCEL';
+  | 'TRANSFER_RESUME_REQUEST'
+  | 'TRANSFER_RESUME_RESPONSE';
 
 export interface BaseSignalingMessage {
   readonly type: SignalingMessageType;
@@ -109,6 +111,23 @@ export interface TransferCancelMessage extends BaseSignalingMessage {
   };
 }
 
+export interface TransferResumeRequestMessage extends BaseSignalingMessage {
+  readonly type: 'TRANSFER_RESUME_REQUEST';
+  readonly targetId: string;
+  readonly payload: {
+    readonly fileId: string;
+  };
+}
+
+export interface TransferResumeResponseMessage extends BaseSignalingMessage {
+  readonly type: 'TRANSFER_RESUME_RESPONSE';
+  readonly targetId: string;
+  readonly payload: {
+    readonly fileId: string;
+    readonly lastContiguousChunk: number; // -1 if none
+  };
+}
+
 export type SignalingMessage =
   | PeerAnnounceMessage
   | PeerLeaveMessage
@@ -120,6 +139,8 @@ export type SignalingMessage =
   | TransferAcceptMessage
   | TransferRejectMessage
   | TransferCancelMessage;
+  | TransferResumeRequestMessage
+  | TransferResumeResponseMessage;
 
 /**
  * Type guard to check if an arbitrary JSON object is a valid SignalingMessage.

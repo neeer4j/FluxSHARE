@@ -44,6 +44,8 @@ export function App(): React.JSX.Element {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const signalingRef = useRef<null | import('./signaling/client').SignalingClient>(null);
   const managersRef = useRef<Map<string, import('./signaling/webrtc').WebRtcManager>>(new Map());
+  const transfersRef = useRef<Map<string, { file: File; sessionId: string; remoteId: string }>>(new Map());
+  const resumePromisesRef = useRef<Map<string, (last: number) => void>>(new Map());
 
   useEffect(() => {
     // Detect mobile device vs PC
@@ -154,6 +156,40 @@ export function App(): React.JSX.Element {
           console.warn('Failed to handle ICE candidate', err);
         }
       }
+      ,
+      onTransferResumeRequest: (msg) => {
+        try {
+          // @ts-expect-error payload
+          const fileId = msg.payload.fileId as string;
+          const requester = msg.senderId;
+          const mgr = managersRef.current.get(requester);
+          const last = mgr ? mgr.getLastContiguousChunk(fileId) : -1;
+          const resp = {
+            type: 'TRANSFER_RESUME_RESPONSE',
+            senderId: deviceId,
+            targetId: requester,
+            timestamp: Date.now(),
+            payload: { fileId, lastContiguousChunk: last }
+          } as unknown as import('@fluxshare/protocol').SignalingMessage;
+          signalingRef.current?.send(resp);
+        } catch (err) {
+          console.warn('Failed to handle TRANSFER_RESUME_REQUEST', err);
+        }
+      },
+      onTransferResumeResponse: (msg) => {
+        try {
+          // @ts-expect-error payload
+          const fileId = msg.payload.fileId as string;
+          const last = Number(msg.payload.lastContiguousChunk ?? -1);
+          const resolver = resumePromisesRef.current.get(fileId);
+          if (resolver) {
+            resolver(last);
+            resumePromisesRef.current.delete(fileId);
+          }
+        } catch (err) {
+          console.warn('Failed to handle TRANSFER_RESUME_RESPONSE', err);
+        }
+      }
     });
 
     signalingRef.current = client;
@@ -206,6 +242,15 @@ export function App(): React.JSX.Element {
     if (!fileToStage) return;
     // send signaling TRANSFER_OFFER
     const sessionId = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `sess-${Date.now()}`;
+    const fileId = `file-${Date.now()}`;
+    const fileMeta: import('@fluxshare/shared').FileMetadata = {
+      id: fileId,
+      name: fileToStage.name,
+      size: fileToStage.size,
+      mimeType: fileToStage.type || 'application/octet-stream',
+      sha256: ''
+    };
+
     const msg = {
       type: 'TRANSFER_OFFER',
       senderId: deviceId,
@@ -213,12 +258,15 @@ export function App(): React.JSX.Element {
       timestamp: Date.now(),
       payload: {
         sessionId,
-        files: [fileToStage],
+        files: [fileMeta],
         totalBytes: fileToStage.size
       }
     } as unknown as import('@fluxshare/protocol').SignalingMessage;
 
     signalingRef.current?.send(msg);
+
+    // store mapping for resume
+    transfersRef.current.set(fileId, { file: fileToStage, sessionId, remoteId: selectedDevice.id });
 
     // locally show outbound modal
     setSimulatedFile({
@@ -240,7 +288,30 @@ export function App(): React.JSX.Element {
       managersRef.current.set(selectedDevice.id, mgr);
       await mgr.initiateNegotiation();
       await mgr.waitForOpen();
-      await mgr.sendFile(fileToStage);
+
+      // ask remote what they've already received for this file (resume)
+      const resumeReq = {
+        type: 'TRANSFER_RESUME_REQUEST',
+        senderId: deviceId,
+        targetId: selectedDevice.id,
+        timestamp: Date.now(),
+        payload: { fileId }
+      } as unknown as import('@fluxshare/protocol').SignalingMessage;
+      signalingRef.current?.send(resumeReq);
+
+      const lastChunk = await new Promise<number>((resolve) => {
+        const timeout = window.setTimeout(() => {
+          resumePromisesRef.current.delete(fileId);
+          resolve(-1);
+        }, 3000);
+        resumePromisesRef.current.set(fileId, (last) => {
+          clearTimeout(timeout);
+          resolve(last);
+        });
+      });
+
+      const startChunk = Math.max(0, lastChunk + 1);
+      await mgr.sendFile(fileToStage, startChunk, fileId);
     } catch (err) {
       console.warn('Failed to establish WebRTC transfer', err);
     }
