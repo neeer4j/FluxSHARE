@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
 import path from 'path';
 import os from 'os';
 import { NETWORK_CONSTANTS } from '@fluxshare/shared';
@@ -93,6 +93,19 @@ function setupIpcHandlers(): void {
       }
     }
     return fallbackIp !== '127.0.0.1' ? fallbackIp : '192.168.1.6';
+  });
+
+  ipcMain.handle('dialog:open-directory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Choose FluxShare download folder',
+      properties: ['openDirectory', 'createDirectory', 'promptToCreate']
+    });
+
+    if (canceled || filePaths.length === 0) {
+      return undefined;
+    }
+
+    return filePaths[0];
   });
 
   ipcMain.handle('file:save', async (_event, args: { filename: string; dataBase64: string; downloadPath?: string }) => {

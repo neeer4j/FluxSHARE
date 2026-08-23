@@ -6,7 +6,8 @@ import {
   formatPercentage,
   sanitizeFilename,
   isValidPort,
-  isValidIPv4
+  isValidIPv4,
+  normalizeDownloadPath
 } from '../src';
 
 describe('formatFileSize', () => {
@@ -70,5 +71,13 @@ describe('Network Validators', () => {
     expect(isValidIPv4('10.0.0.1')).toBe(true);
     expect(isValidIPv4('256.100.50.1')).toBe(false);
     expect(isValidIPv4('invalid_ip')).toBe(false);
+  });
+});
+
+describe('normalizeDownloadPath', () => {
+  it('keeps valid paths and falls back safely for empty or invalid values', () => {
+    expect(normalizeDownloadPath('C:\\Users\\neera\\Downloads\\FluxShare')).toBe('C:\\Users\\neera\\Downloads\\FluxShare');
+    expect(normalizeDownloadPath('')).toBe('C:\\Users\\neera\\Downloads\\FluxShare');
+    expect(normalizeDownloadPath('   ')).toBe('C:\\Users\\neera\\Downloads\\FluxShare');
   });
 });

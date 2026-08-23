@@ -9,6 +9,21 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9
 const IPV4_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
 /**
+ * Normalizes a user-selected download path and falls back to a safe default.
+ */
+export function normalizeDownloadPath(rawPath: string | null | undefined): string {
+  const candidate = typeof rawPath === 'string' ? rawPath.trim() : '';
+  const fallback = 'C:\\Users\\neera\\Downloads\\FluxShare';
+
+  if (!candidate) {
+    return fallback;
+  }
+
+  const sanitized = candidate.replace(/[<>|?*\x00-\x1F]/g, '').trim();
+  return sanitized.length > 0 ? sanitized : fallback;
+}
+
+/**
  * Validates whether a string is a correctly formatted UUID v4.
  */
 export function isValidUuid(uuid: string): boolean {

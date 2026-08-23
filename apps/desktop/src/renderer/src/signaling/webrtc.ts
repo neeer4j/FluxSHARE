@@ -381,28 +381,7 @@ export class WebRtcManager {
     this.dc.send(JSON.stringify(completeMsg));
 
     // cleanup
-    const finalState = this.sendingState.get(fileId);
-            if (pending) {
-              // assemble via main process (reads persisted chunks)
-              try {
-                if ((window as any).fluxshare && typeof (window as any).fluxshare.partialAssemble === 'function') {
-                  (window as any).fluxshare.partialAssemble(fileId, pending.fileName).then((res: any) => {
-                    if (res?.ok) {
-                      console.info('Assembled file on disk:', res.path);
-                      // cleanup partials
-                      try {
-                        if ((window as any).fluxshare && typeof (window as any).fluxshare.partialDelete === 'function') {
-                          (window as any).fluxshare.partialDelete(fileId).catch(() => {});
-                        }
-                      } catch (e) {}
-                    } else {
-                      console.warn('Failed to assemble file on disk', res?.error);
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn('Failed to assemble persisted file', e);
-              }
-
-              this.pendingFiles.delete(fileId);
-            }
+    this.sendingState.delete(fileId);
+    return fileId;
+  }
+}

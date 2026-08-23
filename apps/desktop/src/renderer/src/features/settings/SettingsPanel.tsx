@@ -6,26 +6,49 @@ export interface SettingsPanelProps {
   readonly initialDeviceName: string;
   readonly initialPort: number;
   readonly downloadPath: string;
-  readonly onSaveSettings: (name: string, port: number) => void;
+  readonly onSaveSettings: (name: string, port: number, downloadPath: string) => void;
+  readonly onBrowseDownloadPath?: () => Promise<string | undefined>;
 }
 
 export function SettingsPanel({
   initialDeviceName,
   initialPort,
   downloadPath,
-  onSaveSettings
+  onSaveSettings,
+  onBrowseDownloadPath
 }: SettingsPanelProps): React.JSX.Element {
   const [deviceName, setDeviceName] = useState(initialDeviceName);
   const [port, setPort] = useState(String(initialPort));
+  const [selectedDownloadPath, setSelectedDownloadPath] = useState(downloadPath);
   const [isSaved, setIsSaved] = useState(false);
+
+  React.useEffect(() => {
+    setDeviceName(initialDeviceName);
+  }, [initialDeviceName]);
+
+  React.useEffect(() => {
+    setPort(String(initialPort));
+  }, [initialPort]);
+
+  React.useEffect(() => {
+    setSelectedDownloadPath(downloadPath);
+  }, [downloadPath]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedPort = parseInt(port, 10);
     if (!isNaN(parsedPort)) {
-      onSaveSettings(deviceName, parsedPort);
+      onSaveSettings(deviceName, parsedPort, selectedDownloadPath);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2500);
+    }
+  };
+
+  const handleBrowse = async () => {
+    if (!onBrowseDownloadPath) return;
+    const chosenPath = await onBrowseDownloadPath();
+    if (chosenPath) {
+      setSelectedDownloadPath(chosenPath);
     }
   };
 
@@ -88,10 +111,16 @@ export function SettingsPanel({
             <input
               type="text"
               readOnly
-              value={downloadPath}
+              value={selectedDownloadPath}
               className="flex-1 px-4 py-2 rounded-xl bg-flux-bg border border-flux-border text-xs text-gray-300 font-mono"
             />
-            <Button variant="secondary" size="sm" leftIcon={<FolderOpen className="w-4 h-4" />}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leftIcon={<FolderOpen className="w-4 h-4" />}
+              onClick={handleBrowse}
+            >
               Browse...
             </Button>
           </div>

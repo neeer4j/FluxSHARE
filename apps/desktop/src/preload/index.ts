@@ -7,6 +7,7 @@ export interface FluxShareApi {
   readonly getAppVersion: () => Promise<string>;
   readonly getPlatform: () => Promise<string>;
   readonly getLocalIp: () => Promise<string>;
+  readonly selectDownloadDirectory?: () => Promise<string | undefined>;
   readonly saveFile?: (filename: string, dataBase64: string, downloadPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   readonly partialInit?: (fileId: string, meta: { fileName: string; fileSize: number }) => Promise<{ ok: boolean; error?: string }>;
   readonly partialWrite?: (fileId: string, chunkIndex: number, dataBase64: string) => Promise<{ ok: boolean; error?: string }>;
@@ -18,7 +19,8 @@ export interface FluxShareApi {
 const api: FluxShareApi = {
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   getPlatform: () => ipcRenderer.invoke('app:get-platform'),
-  getLocalIp: () => ipcRenderer.invoke('app:get-local-ip')
+  getLocalIp: () => ipcRenderer.invoke('app:get-local-ip'),
+  selectDownloadDirectory: () => ipcRenderer.invoke('dialog:open-directory')
 };
 
 // optional file save API (only available in Electron main)

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { NETWORK_CONSTANTS, type Device, type FileMetadata } from '@fluxshare/shared';
+import { normalizeDownloadPath } from '@fluxshare/utils';
 import { type NavigationTab } from './components/layout/Sidebar';
 import { HeaderBar } from './components/layout/HeaderBar';
 import { NearbyDevicesList } from './features/discovery/NearbyDevicesList';
@@ -31,6 +32,22 @@ export function App(): React.JSX.Element {
   // Settings State
   const [deviceName, setDeviceName] = useState<string>('My FluxShare Desktop');
   const [port, setPort] = useState<number>(NETWORK_CONSTANTS.DEFAULT_SIGNALING_PORT);
+  const [downloadPath, setDownloadPath] = useState<string>(() => normalizeDownloadPath('C:\\Users\\neera\\Downloads\\FluxShare'));
+
+  // Load persisted settings from localStorage (quick, cross-platform persistence)
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('fluxshare:settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.deviceName) setDeviceName(String(parsed.deviceName));
+        if (parsed?.port) setPort(Number(parsed.port));
+        if (parsed?.downloadPath) setDownloadPath(normalizeDownloadPath(String(parsed.downloadPath)));
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  }, []);
   const [deviceId] = useState<string>(() => (crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `dev-${Date.now()}`));
 
   // Modal States
@@ -383,9 +400,27 @@ export function App(): React.JSX.Element {
     setIsModalOpen(false);
   };
 
-  const handleSaveSettings = (newName: string, newPort: number) => {
+  const handleSaveSettings = (newName: string, newPort: number, newDownloadPath: string) => {
     setDeviceName(newName);
     setPort(newPort);
+    setDownloadPath(normalizeDownloadPath(newDownloadPath));
+    try {
+      const payload = { deviceName: newName, port: newPort, downloadPath: newDownloadPath };
+      localStorage.setItem('fluxshare:settings', JSON.stringify(payload));
+    } catch (e) {
+      // best-effort only
+      console.warn('Failed to persist settings to localStorage', e);
+    }
+  };
+
+  const handleBrowseDownloadPath = async (): Promise<string | undefined> => {
+    const selectedPath = await window.fluxshare?.selectDownloadDirectory?.();
+    if (selectedPath) {
+      const normalized = normalizeDownloadPath(selectedPath);
+      setDownloadPath(normalized);
+      return normalized;
+    }
+    return undefined;
   };
 
   return (
@@ -444,8 +479,9 @@ export function App(): React.JSX.Element {
             <SettingsPanel
               initialDeviceName={deviceName}
               initialPort={port}
-              downloadPath="C:\Users\neera\Downloads\FluxShare"
+              downloadPath={downloadPath}
               onSaveSettings={handleSaveSettings}
+              onBrowseDownloadPath={handleBrowseDownloadPath}
             />
           </div>
         )}
