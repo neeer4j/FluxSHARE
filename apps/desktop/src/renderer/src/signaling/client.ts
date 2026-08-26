@@ -2,6 +2,11 @@ import { NETWORK_CONSTANTS, type Device } from '@fluxshare/shared';
 import {
   type SignalingMessage,
   type TransferOfferMessage,
+  type WebRtcOfferMessage,
+  type WebRtcAnswerMessage,
+  type WebRtcIceCandidateMessage,
+  type TransferResumeRequestMessage,
+  type TransferResumeResponseMessage,
   isSignalingMessage
 } from '@fluxshare/protocol';
 
@@ -10,11 +15,11 @@ type Handlers = {
   onPeerAnnounce?: (peer: Device) => void;
   onPeerLeave?: (peerId: string) => void;
   onTransferOffer?: (msg: TransferOfferMessage) => void;
-  onWebRtcOffer?: (msg: SignalingMessage) => void;
-  onWebRtcAnswer?: (msg: SignalingMessage) => void;
-  onIceCandidate?: (msg: SignalingMessage) => void;
-  onTransferResumeRequest?: (msg: SignalingMessage) => void;
-  onTransferResumeResponse?: (msg: SignalingMessage) => void;
+  onWebRtcOffer?: (msg: WebRtcOfferMessage) => void;
+  onWebRtcAnswer?: (msg: WebRtcAnswerMessage) => void;
+  onIceCandidate?: (msg: WebRtcIceCandidateMessage) => void;
+  onTransferResumeRequest?: (msg: TransferResumeRequestMessage) => void;
+  onTransferResumeResponse?: (msg: TransferResumeResponseMessage) => void;
   onRawMessage?: (msg: SignalingMessage) => void;
 };
 
@@ -61,12 +66,10 @@ export class SignalingClient {
 
         // Dispatch to typed handlers
         if (msg.type === 'PEERS_LIST' && this.handlers.onPeersList) {
-          // @ts-expect-error peers payload
           this.handlers.onPeersList(msg.payload.peers as Device[]);
         }
 
         if (msg.type === 'PEER_ANNOUNCE' && this.handlers.onPeerAnnounce) {
-          // @ts-expect-error device payload
           this.handlers.onPeerAnnounce(msg.payload.device as Device);
         }
 
@@ -79,21 +82,21 @@ export class SignalingClient {
         }
 
         if (msg.type === 'WEBRTC_OFFER' && this.handlers.onWebRtcOffer) {
-          this.handlers.onWebRtcOffer(msg);
+          this.handlers.onWebRtcOffer(msg as WebRtcOfferMessage);
         }
 
         if (msg.type === 'WEBRTC_ANSWER' && this.handlers.onWebRtcAnswer) {
-          this.handlers.onWebRtcAnswer(msg);
+          this.handlers.onWebRtcAnswer(msg as WebRtcAnswerMessage);
         }
 
         if (msg.type === 'WEBRTC_ICE_CANDIDATE' && this.handlers.onIceCandidate) {
-          this.handlers.onIceCandidate(msg);
+          this.handlers.onIceCandidate(msg as WebRtcIceCandidateMessage);
         }
         if (msg.type === 'TRANSFER_RESUME_REQUEST' && this.handlers.onTransferResumeRequest) {
-          this.handlers.onTransferResumeRequest(msg);
+          this.handlers.onTransferResumeRequest(msg as TransferResumeRequestMessage);
         }
         if (msg.type === 'TRANSFER_RESUME_RESPONSE' && this.handlers.onTransferResumeResponse) {
-          this.handlers.onTransferResumeResponse(msg);
+          this.handlers.onTransferResumeResponse(msg as TransferResumeResponseMessage);
         }
 
         if (this.handlers.onRawMessage) this.handlers.onRawMessage(msg);

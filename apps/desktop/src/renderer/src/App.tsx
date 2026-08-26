@@ -15,6 +15,8 @@ import {
 } from './features/transfer/TransferHistoryTable';
 import { SettingsPanel } from './features/settings/SettingsPanel';
 import { ConnectMobileModal } from './components/modals/ConnectMobileModal';
+import { SignalingClient, buildWsUrl } from './signaling/client';
+import { WebRtcManager } from './signaling/webrtc';
 
 export function App(): React.JSX.Element {
   // Discovered Peers State (Starts empty, populates dynamically or via demo trigger)
@@ -103,10 +105,6 @@ export function App(): React.JSX.Element {
       lastSeen: Date.now()
     };
 
-    // lazy import to avoid unresolved module during SSR/dev build
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { SignalingClient, buildWsUrl } = require('./signaling/client');
-
     const wsUrl = buildWsUrl(localIp || 'localhost', port);
     const client = new SignalingClient(wsUrl, localDevice);
 
@@ -129,6 +127,7 @@ export function App(): React.JSX.Element {
       onTransferOffer: (msg) => {
         // Open modal to confirm incoming transfer
         const file = msg.payload.files[0];
+        if (!file) return;
         setSelectedPeerId(msg.senderId);
         setSimulatedFile(file);
         setModalStep('confirm');
@@ -137,10 +136,8 @@ export function App(): React.JSX.Element {
       ,
       onWebRtcOffer: (msg) => {
         try {
-          // @ts-expect-error payload
           const sdp = msg.payload.sdp as string;
           const sender = msg.senderId;
-          const { WebRtcManager } = require('./signaling/webrtc');
           let mgr = managersRef.current.get(sender);
           if (!mgr) {
             mgr = new WebRtcManager(deviceId, sender, (m: any) => signalingRef.current?.send(m));
@@ -153,7 +150,6 @@ export function App(): React.JSX.Element {
       },
       onWebRtcAnswer: (msg) => {
         try {
-          // @ts-expect-error payload
           const sdp = msg.payload.sdp as string;
           const sender = msg.senderId;
           const mgr = managersRef.current.get(sender);
@@ -164,7 +160,6 @@ export function App(): React.JSX.Element {
       },
       onIceCandidate: (msg) => {
         try {
-          // @ts-expect-error payload
           const candidate = msg.payload.candidate as string;
           const sender = msg.senderId;
           const mgr = managersRef.current.get(sender);
@@ -176,7 +171,6 @@ export function App(): React.JSX.Element {
       ,
       onTransferResumeRequest: (msg) => {
         try {
-          // @ts-expect-error payload
           const fileId = msg.payload.fileId as string;
           const requester = msg.senderId;
           const mgr = managersRef.current.get(requester);
@@ -195,7 +189,6 @@ export function App(): React.JSX.Element {
       },
       onTransferResumeResponse: (msg) => {
         try {
-          // @ts-expect-error payload
           const fileId = msg.payload.fileId as string;
           const last = Number(msg.payload.lastContiguousChunk ?? -1);
           const resolver = resumePromisesRef.current.get(fileId);
@@ -299,8 +292,6 @@ export function App(): React.JSX.Element {
 
     // create a WebRTC manager and start negotiation as initiator
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { WebRtcManager } = require('./signaling/webrtc');
       const mgr = new WebRtcManager(deviceId, selectedDevice.id, (m: any) => signalingRef.current?.send(m));
       managersRef.current.set(selectedDevice.id, mgr);
       await mgr.initiateNegotiation();

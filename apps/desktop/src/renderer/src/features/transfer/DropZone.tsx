@@ -79,13 +79,7 @@ export function DropZone({
         onDrop={(e) => {
           e.preventDefault();
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const files: FileMetadata[] = Array.from(e.dataTransfer.files).map((f, i) => ({
-              id: `file-${Date.now()}-${i}`,
-              name: f.name,
-              size: f.size,
-              mimeType: f.type || 'application/octet-stream',
-              sha256: 'a3f89d02e8cb145a7b8e192f07328df82b71948e'
-            }));
+            const files: File[] = Array.from(e.dataTransfer.files);
             setStagedFiles((prev) => [...prev, ...files]);
           }
         }}

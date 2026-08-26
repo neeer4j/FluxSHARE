@@ -13,7 +13,7 @@ export type SignalingMessageType =
   | 'TRANSFER_OFFER'
   | 'TRANSFER_ACCEPT'
   | 'TRANSFER_REJECT'
-  | 'TRANSFER_CANCEL';
+  | 'TRANSFER_CANCEL'
   | 'TRANSFER_RESUME_REQUEST'
   | 'TRANSFER_RESUME_RESPONSE';
 
@@ -138,7 +138,7 @@ export type SignalingMessage =
   | TransferOfferMessage
   | TransferAcceptMessage
   | TransferRejectMessage
-  | TransferCancelMessage;
+  | TransferCancelMessage
   | TransferResumeRequestMessage
   | TransferResumeResponseMessage;
 

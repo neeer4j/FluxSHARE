@@ -6,7 +6,6 @@ import { createLogger } from '@fluxshare/utils';
 import fs from 'fs/promises';
 import { mkdirSync } from 'fs';
 import { app as electronApp } from 'electron';
-import base64 from 'base-64';
 
 const logger = createLogger('ElectronMain', 'info');
 

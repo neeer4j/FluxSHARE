@@ -2,9 +2,11 @@ import { NETWORK_CONSTANTS } from '@fluxshare/shared';
 import type { SignalingMessage } from '@fluxshare/protocol';
 
 type PendingFile = {
+  sessionId: string;
   fileName: string;
   totalSize: number;
   receivedBuffers: Uint8Array[];
+  receivedChunks: Map<number, Uint8Array>;
   receivedBytes: number;
   receivedIndices: Set<number>;
 };
@@ -90,9 +92,11 @@ export class WebRtcManager {
           if (data && data.type === 'FILE_START') {
             const fileId = data.fileId as string;
             this.pendingFiles.set(fileId, {
+              sessionId: data.sessionId,
               fileName: data.payload.fileName,
               totalSize: data.payload.fileSize,
               receivedBuffers: [],
+              receivedChunks: new Map<number, Uint8Array>(),
               receivedBytes: 0,
               receivedIndices: new Set<number>()
             });
@@ -105,15 +109,17 @@ export class WebRtcManager {
             } catch (e) {
               console.warn('partialInit failed', e);
             }
-          } else if (data && data.type === 'CHUNK_HEADER') {
+          } else if (data && (data.type === 'CHUNK_DATA' || data.type === 'CHUNK_HEADER')) {
             // metadata header for the next binary chunk
             const fileId = data.fileId as string;
             const pending = this.pendingFiles.get(fileId);
             if (!pending) {
               this.pendingFiles.set(fileId, {
+                sessionId: data.sessionId,
                 fileName: data.payload.fileName ?? 'unknown',
                 totalSize: data.payload.fileSize ?? 0,
                 receivedBuffers: [],
+                receivedChunks: new Map<number, Uint8Array>(),
                 receivedBytes: 0,
                 receivedIndices: new Set<number>()
               });
@@ -124,7 +130,7 @@ export class WebRtcManager {
             // sender will handle ACK messages; update sending state
             try {
               const fileId = data.fileId as string;
-              const chunkIndex = data.chunkIndex as number;
+              const chunkIndex = (data.payload?.chunkIndex ?? data.chunkIndex) as number;
               const state = this.sendingState.get(fileId);
               if (state && state.unacked.has(chunkIndex)) {
                 state.unacked.delete(chunkIndex);
@@ -146,7 +152,8 @@ export class WebRtcManager {
               // concatenate
               const full = new Uint8Array(pending.receivedBytes);
               let offset = 0;
-              for (const b of pending.receivedBuffers) {
+              const chunks = [...pending.receivedChunks.entries()].sort(([a], [b]) => a - b);
+              for (const [, b] of chunks) {
                 full.set(b, offset);
                 offset += b.byteLength;
               }
@@ -154,7 +161,7 @@ export class WebRtcManager {
               // try Electron save
               if (window.fluxshare && typeof window.fluxshare.saveFile === 'function') {
                 const base64 = uint8ArrayToBase64(full);
-                window.fluxshare.saveFile(pending.fileName, base64).then((res) => {
+                window.fluxshare.saveFile(pending.fileName, base64).then((res: { ok: boolean; path?: string; error?: string }) => {
                   console.info('Saved file result', res);
                 });
               } else {
@@ -179,8 +186,12 @@ export class WebRtcManager {
             const expected = (pending as any).__nextChunkIndex as number | undefined;
             if (typeof expected === 'number') {
               // persist chunk to disk via main process to allow resume across restarts
-              pending.receivedBytes += arr.byteLength;
-              if (pending.receivedIndices) pending.receivedIndices.add(expected);
+              if (!pending.receivedChunks.has(expected)) {
+                pending.receivedChunks.set(expected, arr);
+                pending.receivedBuffers.push(arr);
+                pending.receivedBytes += arr.byteLength;
+                pending.receivedIndices.add(expected);
+              }
               // clear the expected chunk index
               delete (pending as any).__nextChunkIndex;
               try {
@@ -198,7 +209,14 @@ export class WebRtcManager {
 
               // send ACK for the received chunk
               try {
-                this.dc?.send(JSON.stringify({ type: 'CHUNK_ACK', fileId, chunkIndex: expected, bytesReceived: pending.receivedBytes }));
+                this.dc?.send(
+                  JSON.stringify({
+                    type: 'CHUNK_ACK',
+                    sessionId: pending.sessionId,
+                    fileId,
+                    payload: { chunkIndex: expected, bytesReceived: pending.receivedBytes }
+                  })
+                );
               } catch (e) {}
               break;
             }
@@ -267,6 +285,23 @@ export class WebRtcManager {
     }
   }
 
+  public async waitForOpen(timeoutMs = 10000): Promise<void> {
+    if (this.dc?.readyState === 'open') return;
+
+    await new Promise<void>((resolve, reject) => {
+      const startedAt = Date.now();
+      const poll = window.setInterval(() => {
+        if (this.dc?.readyState === 'open') {
+          window.clearInterval(poll);
+          resolve();
+        } else if (Date.now() - startedAt >= timeoutMs) {
+          window.clearInterval(poll);
+          reject(new Error('WebRTC data channel did not open in time'));
+        }
+      }, 50);
+    });
+  }
+
   public getLastContiguousChunk(fileId: string): number {
     const pending = this.pendingFiles.get(fileId);
     if (!pending || !pending.receivedIndices) return -1;
@@ -298,9 +333,10 @@ export class WebRtcManager {
     }
 
     // send FILE_START
+    const sessionId = `session-${fileId}`;
     const startMsg = {
       type: 'FILE_START',
-      sessionId: `${Date.now()}`,
+      sessionId,
       fileId,
       payload: {
         fileName: file.name,
@@ -345,7 +381,12 @@ export class WebRtcManager {
       }
 
       // send header and binary
-      const header = { type: 'CHUNK_HEADER', fileId, payload: { chunkIndex, byteLength: chunk.byteLength, fileName: file.name, fileSize: file.size } };
+      const header = {
+        type: 'CHUNK_DATA',
+        sessionId,
+        fileId,
+        payload: { chunkIndex, byteOffset: offset, byteLength: chunk.byteLength }
+      };
       try {
         this.dc.send(JSON.stringify(header));
         this.dc.send(chunk);

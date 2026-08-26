@@ -4,16 +4,16 @@ import { contextBridge, ipcRenderer } from 'electron';
  * Strict TypeScript interface for window.fluxshare exposed to renderer process.
  */
 export interface FluxShareApi {
-  readonly getAppVersion: () => Promise<string>;
-  readonly getPlatform: () => Promise<string>;
-  readonly getLocalIp: () => Promise<string>;
-  readonly selectDownloadDirectory?: () => Promise<string | undefined>;
-  readonly saveFile?: (filename: string, dataBase64: string, downloadPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
-  readonly partialInit?: (fileId: string, meta: { fileName: string; fileSize: number }) => Promise<{ ok: boolean; error?: string }>;
-  readonly partialWrite?: (fileId: string, chunkIndex: number, dataBase64: string) => Promise<{ ok: boolean; error?: string }>;
-  readonly partialGetMeta?: (fileId: string) => Promise<{ ok: boolean; meta?: any; error?: string }>;
-  readonly partialAssemble?: (fileId: string, filename: string, downloadPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
-  readonly partialDelete?: (fileId: string) => Promise<{ ok: boolean; error?: string }>;
+  getAppVersion: () => Promise<string>;
+  getPlatform: () => Promise<string>;
+  getLocalIp: () => Promise<string>;
+  selectDownloadDirectory?: () => Promise<string | undefined>;
+  saveFile?: (filename: string, dataBase64: string, downloadPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  partialInit?: (fileId: string, meta: { fileName: string; fileSize: number }) => Promise<{ ok: boolean; error?: string }>;
+  partialWrite?: (fileId: string, chunkIndex: number, dataBase64: string) => Promise<{ ok: boolean; error?: string }>;
+  partialGetMeta?: (fileId: string) => Promise<{ ok: boolean; meta?: any; error?: string }>;
+  partialAssemble?: (fileId: string, filename: string, downloadPath?: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  partialDelete?: (fileId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const api: FluxShareApi = {
