@@ -11,17 +11,21 @@ const logger = createLogger('SignalingServer', 'info');
 const PORT = Number(process.env.PORT) || NETWORK_CONSTANTS.DEFAULT_SIGNALING_PORT;
 const HOST = '0.0.0.0';
 
+export function buildHealthPayload() {
+  return {
+    status: 'ok',
+    service: 'fluxshare-signaling-server',
+    version: NETWORK_CONSTANTS.PROTOCOL_VERSION,
+    timestamp: Date.now()
+  } as const;
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    service: 'fluxshare-signaling-server',
-    version: NETWORK_CONSTANTS.PROTOCOL_VERSION,
-    timestamp: Date.now()
-  });
+  res.status(200).json(buildHealthPayload());
 });
 
 // Serve built web/desktop renderer static files for zero-install mobile access
