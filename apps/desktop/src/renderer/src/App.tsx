@@ -483,7 +483,8 @@ export function App(): React.JSX.Element {
         isOpen={isConnectMobileOpen}
         onClose={() => setIsConnectMobileOpen(false)}
         localIp={localIp}
-        port={port}
+        // In development Vite serves the mobile page; packaged builds use the signaling server.
+        port={window.location.port === '3000' ? 3000 : port}
       />
 
       {/* File Transfer Progress Modal */}
